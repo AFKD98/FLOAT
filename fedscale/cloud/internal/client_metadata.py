@@ -1,0 +1,197 @@
+import numpy as np
+import random
+import logging
+
+class ClientMetadata:
+    """
+    Contains the server-side metadata for a single client.
+    """
+
+    def __init__(self, host_id, client_id, speed, possible_bandwidths = [], traces=None):
+        """
+        Initializes the ClientMetadata.
+        :param host_id: id of the executor which is handling this client.
+        :param client_id: id of the client.
+        :param speed: computation and communication speed of the client.
+        :param traces: list of client availability traces.
+        """
+        self.host_id = host_id
+        self.client_id = client_id
+        self.compute_speed = speed['computation']
+        self.compute_speed_with_inference = speed['computation']
+        self.bandwidth = speed['communication']
+        #Faraz - get 1 random value from possible_bandwidths
+        if len(possible_bandwidths)<=0:
+            self.possible_bandwidths = [self.bandwidth]
+        else:
+            self.possible_bandwidths = possible_bandwidths
+        self.bandwidth = random.sample(self.possible_bandwidths, 1)
+        if type(self.bandwidth) is list:
+            self.bandwidth = self.bandwidth[0]
+        logging.info("Client {} has bandwidth {}".format(self.client_id, self.bandwidth))
+        self.score = 0
+        #Faraz - add client participation rate
+        self.participation_rate = 0
+        self.traces = traces
+        self.behavior_index = 0
+        #Faraz - current completion time of the client
+        self.completion_time = {'computation': 0, 'communication': 0}
+
+    def get_score(self):
+        return self.score
+
+    def register_reward(self, reward):
+        """
+        Registers the rewards of the client
+        :param reward: int
+        """
+        self.score = reward
+
+    #Faraz - get client resources
+    def get_client_resources(self):
+        """
+        Returns the resources of the client
+        :return: dict
+        """
+        return {'computation_power': self.compute_speed_with_inference, 'communication_kbps': self.bandwidth}
+    
+    def is_active(self, cur_time):
+        """
+        Decides whether the client is active at given cur_time
+        :param cur_time: time in seconds
+        :return: boolean
+        """
+        if self.traces is None:
+            return True
+
+        norm_time = cur_time % self.traces['finish_time']
+
+        if norm_time > self.traces['inactive'][self.behavior_index]:
+            self.behavior_index += 1
+
+        self.behavior_index %= len(self.traces['active'])
+
+        if self.traces['active'][self.behavior_index] <= norm_time <= self.traces['inactive'][self.behavior_index]:
+            return True
+
+        return False
+    
+    def can_participate(self, curr_time, compute_time, communication_time):
+        """
+        Decides whether the client is active at given total_time
+        :param total_time: time in seconds
+        :return: boolean
+        """
+        total_time = communication_time + compute_time
+        if self.traces is None:
+            return True, 0
+        
+        norm_time = curr_time
+        # Faraz - reset behavior index if the client is reaching finish time of trace
+        if curr_time >= self.traces['finish_time']:
+            # norm_time = curr_time % self.traces['finish_time']
+            norm_time = curr_time % 19172
+
+        if norm_time > self.traces['inactive'][self.behavior_index]:
+            self.behavior_index += 1
+        
+        if curr_time >= 19172:
+            self.behavior_index = 0
+            
+        self.behavior_index %= len(self.traces['active'])
+        #Faraz - calculate end time based on whether request is recieved at start of active time or midway
+        end_time = max(norm_time, self.traces['active'][self.behavior_index]) + total_time
+        
+        #Faraz - check which bottleneck is causing the client to be inactive
+        if  end_time <= self.traces['inactive'][self.behavior_index]:
+            return (True,  0)
+        else:
+            # logging.info('behavior index: {}'.format(self.behavior_index))
+            if max(norm_time, self.traces['active'][self.behavior_index]) + compute_time > self.traces['inactive'][self.behavior_index]:
+                logging.info("Client {} has compute bottleneck: {} ".format(self.client_id, self.traces['inactive'][self.behavior_index] - (self.traces['active'][self.behavior_index] + compute_time)))
+                logging.info("Client {} is not active: {} - norm: {} - inactive: {} - curr_time: {} - finish_time {}, behavior_index: {}, total_time: {}, end_time: {}".format(self.client_id, self.traces['active'][self.behavior_index], norm_time, self.traces['inactive'][self.behavior_index], curr_time, self.traces['finish_time'], self.behavior_index, total_time, end_time))
+                return (False, self.traces['inactive'][self.behavior_index] - end_time)
+            elif max(norm_time, self.traces['active'][self.behavior_index]) + communication_time > self.traces['inactive'][self.behavior_index]:
+                logging.info("Client {} has communication bottleneck: {} ".format(self.client_id, self.traces['inactive'][self.behavior_index] - (self.traces['active'][self.behavior_index] + communication_time)))
+                logging.info("Client {} is not active: {} - norm: {} - inactive: {} - curr_time: {} - finish_time {}, behavior_index: {}, total_time: {}, end_time: {}".format(self.client_id, self.traces['active'][self.behavior_index], norm_time, self.traces['inactive'][self.behavior_index], curr_time, self.traces['finish_time'], self.behavior_index, total_time, end_time))
+                return (False, self.traces['inactive'][self.behavior_index] - end_time)
+            elif end_time > self.traces['inactive'][self.behavior_index]:
+                logging.info("Client {} has both bottlenecks: {} ".format(self.client_id, self.traces['inactive'][self.behavior_index] - end_time))
+                logging.info("Client {} is not active: {} - norm: {} - inactive: {} - curr_time: {} - finish_time {}, behavior_index: {}, total_time: {}, end_time: {}".format(self.client_id, self.traces['active'][self.behavior_index], norm_time, self.traces['inactive'][self.behavior_index], curr_time, self.traces['finish_time'], self.behavior_index, total_time, end_time))
+                return (False, self.traces['inactive'][self.behavior_index] - end_time)
+
+    def get_new_network_bandwidth(self):
+        """
+        Returns the new network bandwidth of the client
+        :return: float
+        """
+            
+        self.bandwidth = random.sample(self.possible_bandwidths, 1)
+        if type(self.bandwidth) is list:
+            self.bandwidth = self.bandwidth[0]
+        return self.bandwidth
+    
+    def get_completion_time_with_variable_network(self, batch_size, local_steps, upload_size, download_size, augmentation_factor=3.0, add_cpu_noise=True):
+        """
+           Computation latency: compute_speed is the inference latency of models (ms/sample). As reproted in many papers,
+                                backward-pass takes around 2x the latency, so we multiple it by 3x;
+           Communication latency: communication latency = (pull + push)_update_size/bandwidth;
+        """
+        try:
+            self.bandwidth = self.get_new_network_bandwidth()
+            if add_cpu_noise:
+                self.compute_speed_with_inference = np.random.uniform(0.1*self.compute_speed, self.compute_speed)
+            if self.bandwidth == 0 or self.compute_speed_with_inference == 0:
+                self.completion_time = {'computation': 10000000, 'communication': 10000000}
+                return self.completion_time
+            
+                
+            self.completion_time = {'computation': augmentation_factor * batch_size * local_steps*float(self.compute_speed_with_inference)/1000.,
+                    'communication': (upload_size+download_size)/float(self.bandwidth)}
+            return self.completion_time
+        except Exception as e:
+            logging.info("Error in get_completion_time_with_variable_network: {}".format(e))
+            
+        
+    def get_completion_time(self, batch_size, local_steps, upload_size, download_size, augmentation_factor=3.0):
+        """
+           Computation latency: compute_speed is the inference latency of models (ms/sample). As reproted in many papers,
+                                backward-pass takes around 2x the latency, so we multiple it by 3x;
+           Communication latency: communication latency = (pull + push)_update_size/bandwidth;
+        """
+        self.completion_time = {'computation': augmentation_factor * batch_size * local_steps*float(self.compute_speed)/1000.,
+                'communication': (upload_size+download_size)/float(self.bandwidth)}
+        return self.completion_time
+
+    def get_completion_time_lognormal(self, batch_size, local_steps, upload_size, download_size,
+                                      mean_seconds_per_sample=0.005, tail_skew=0.6):
+        """
+        Computation latency: compute_speed is the inference latency of models (ms/sample). The calculation assumes
+        that client computation speed is a lognormal distribution (see PAPAPYA / GFL papers), and uses the parameters
+        to sample a client task completion time.
+        Communication latency: communication latency = (pull + push)_update_size/bandwidth;
+        :param batch_size: size of each training batch
+        :param local_steps: number of local client training steps
+        :param upload_size: size of model download (MB)
+        :param download_size: size of model upload (MB)
+        :param mean_seconds_per_sample: mean seconds to process a single training example. This can be adjusted based on
+        on-device benchmarks.
+        :param tail_skew: the skew of the lognormal distribution used to model device speed.
+        :return: dict of computation and communication times for the client's training task.
+        """
+        device_speed = max(0.0001, np.random.lognormal(1, tail_skew, 1)[0])
+        return {'computation': device_speed * mean_seconds_per_sample * batch_size * local_steps,
+                'communication': (upload_size + download_size) / float(self.bandwidth)}
+        
+    #Faraz - added this function to get the quota for the client
+    
+    def get_quota(self):
+        """
+           Computation latency: compute_speed is the inference latency of models (ms/sample). As reproted in many papers,
+                                backward-pass takes around 2x the latency, so we multiple it by 3x;
+           Communication latency: communication latency = (pull + push)_update_size/bandwidth;
+        """
+        if self.traces is None or 'quota' not in self.traces:
+            return {'quota': 10000000}
+        else:
+            return {'quota': self.traces['quota']}
