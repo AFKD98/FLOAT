@@ -27,6 +27,7 @@ class AsyncAggregator(Aggregator):
                 self.clients_dropped_per_duration[event_time] = []
             # logging.info("HERE40")
             client = self.client_manager.select_participants(1, cur_time=event_time)[0]
+            # logging.info("Faraz - Selected client: {}".format(client))
             client_cfg = self.client_conf.get(client, self.args)
             # logging.info("HERE41")
 
@@ -44,6 +45,7 @@ class AsyncAggregator(Aggregator):
             # logging.info("HERE42")
             (participation_feasibility, deadline_difference) = self.client_manager.getClientFeasibilityForParticipation(client, event_time, self.model_update_size, self.model_update_size)
             # logging.info("HERE43")
+            # logging.info(f'Faraz - Client {client} has {participation_feasibility} feasibility for participation')
             if participation_feasibility:
                 heappush(self.min_pq, (event_time, 'start', client))
                 heappush(self.min_pq, (end_time, 'end', client))
@@ -53,6 +55,7 @@ class AsyncAggregator(Aggregator):
                 if len(self.clients_dropped_per_duration) > 0 and client in self.clients_dropped_per_duration[event_time]:
                     if self.event_type == 'start':
                         self.current_concurrency -= 1
+                    # logging.info("Faraz - Client {} dropped out".format(client))
                 else:
                     # print("Client {} dropped out".format(client))
                     client_resources = self.client_manager.get_client_resources(client)
@@ -135,20 +138,23 @@ class AsyncAggregator(Aggregator):
                             self._new_task(event_time)
                         if self.round - self.client_task_model_version[client] <= self.args.max_staleness:
                             clients_to_run.append(client)
+                        # else:
+                            # logging.info("Faraz - Client {} model is stale by {} rounds".format(client, self.round - self.client_task_model_version[client]))
                         durations.append(event_time - self.client_task_start_times[client])
                         final_time = event_time
                     # logging.info("HERE12")
-                    clients_to_run = [client for client in clients_to_run if client not in self.clients_dropped_out_per_round]
-                    
-                    if clients_before == len(clients_to_run) and self.round >=199 and event_type != 'start':
+                    # logging.info("Clients to run BEFORE : {}, num_clients_to_collect: {}".format(len(clients_to_run), num_clients_to_collect))
+                    clients_to_run = [client for client in clients_to_run if client not in self.clients_dropped_out]
+                    # logging.info("Clients to run AFTER : {}, num_clients_to_collect: {}".format(len(clients_to_run), num_clients_to_collect))
+                    # if clients_before == len(clients_to_run) and self.round >=198:
                         # logging.info("Faraz - Increasing time because no clients were added to clients_to_run")
-                        event_time+=10
+                        # event_time+=50
                         
                 self.global_virtual_clock = max(final_time,self.global_virtual_clock)
                 # logging.info("HERE13")
                 
                 #Faraz - remove dropped out clients in this round from the list of clients to run
-                return clients_to_run, self.clients_dropped_out_per_round[self.round], self.virtual_client_clock, 0, durations
+                return clients_to_run, self.clients_dropped_out, self.virtual_client_clock, 0, durations
             else:
                 # Dummy placeholder for non-simulations.
                 completed_client_clock = {

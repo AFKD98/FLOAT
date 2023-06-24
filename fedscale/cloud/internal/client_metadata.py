@@ -82,43 +82,40 @@ class ClientMetadata:
         :param total_time: time in seconds
         :return: boolean
         """
-        total_time = communication_time + compute_time
-        if self.traces is None:
-            return True, 0
-        
-        norm_time = curr_time
-        # Faraz - reset behavior index if the client is reaching finish time of trace
-        if curr_time >= self.traces['finish_time']:
-            # norm_time = curr_time % self.traces['finish_time']
-            norm_time = curr_time % 19172
-
-        if norm_time > self.traces['inactive'][self.behavior_index]:
-            self.behavior_index += 1
-        
-        if curr_time >= 19172:
-            self.behavior_index = 0
+        try:
+            total_time = communication_time + compute_time
+            if self.traces is None:
+                return True, 0
             
-        self.behavior_index %= len(self.traces['active'])
-        #Faraz - calculate end time based on whether request is recieved at start of active time or midway
-        end_time = max(norm_time, self.traces['active'][self.behavior_index]) + total_time
-        
-        #Faraz - check which bottleneck is causing the client to be inactive
-        if  end_time <= self.traces['inactive'][self.behavior_index]:
-            return (True,  0)
-        else:
-            # logging.info('behavior index: {}'.format(self.behavior_index))
-            if max(norm_time, self.traces['active'][self.behavior_index]) + compute_time > self.traces['inactive'][self.behavior_index]:
-                logging.info("Client {} has compute bottleneck: {} ".format(self.client_id, self.traces['inactive'][self.behavior_index] - (self.traces['active'][self.behavior_index] + compute_time)))
-                logging.info("Client {} is not active: {} - norm: {} - inactive: {} - curr_time: {} - finish_time {}, behavior_index: {}, total_time: {}, end_time: {}".format(self.client_id, self.traces['active'][self.behavior_index], norm_time, self.traces['inactive'][self.behavior_index], curr_time, self.traces['finish_time'], self.behavior_index, total_time, end_time))
-                return (False, self.traces['inactive'][self.behavior_index] - end_time)
-            elif max(norm_time, self.traces['active'][self.behavior_index]) + communication_time > self.traces['inactive'][self.behavior_index]:
-                logging.info("Client {} has communication bottleneck: {} ".format(self.client_id, self.traces['inactive'][self.behavior_index] - (self.traces['active'][self.behavior_index] + communication_time)))
-                logging.info("Client {} is not active: {} - norm: {} - inactive: {} - curr_time: {} - finish_time {}, behavior_index: {}, total_time: {}, end_time: {}".format(self.client_id, self.traces['active'][self.behavior_index], norm_time, self.traces['inactive'][self.behavior_index], curr_time, self.traces['finish_time'], self.behavior_index, total_time, end_time))
-                return (False, self.traces['inactive'][self.behavior_index] - end_time)
-            elif end_time > self.traces['inactive'][self.behavior_index]:
-                logging.info("Client {} has both bottlenecks: {} ".format(self.client_id, self.traces['inactive'][self.behavior_index] - end_time))
-                logging.info("Client {} is not active: {} - norm: {} - inactive: {} - curr_time: {} - finish_time {}, behavior_index: {}, total_time: {}, end_time: {}".format(self.client_id, self.traces['active'][self.behavior_index], norm_time, self.traces['inactive'][self.behavior_index], curr_time, self.traces['finish_time'], self.behavior_index, total_time, end_time))
-                return (False, self.traces['inactive'][self.behavior_index] - end_time)
+            # Faraz - reset behavior index if the client is reaching finish time of trace
+            norm_time = curr_time % self.traces['finish_time']
+
+            if norm_time > self.traces['inactive'][self.behavior_index]:
+                self.behavior_index += 1
+            
+            self.behavior_index %= len(self.traces['active'])
+            #Faraz - calculate end time based on whether request is recieved at start of active time or midway
+            end_time = max(norm_time, self.traces['active'][self.behavior_index]) + total_time
+            
+            #Faraz - check which bottleneck is causing the client to be inactive
+            if  end_time <= self.traces['inactive'][self.behavior_index]:
+                return (True,  0)
+            else:
+                if max(norm_time, self.traces['active'][self.behavior_index]) + compute_time > self.traces['inactive'][self.behavior_index]:
+                    logging.info("Client {} has compute bottleneck: {} ".format(self.client_id, self.traces['inactive'][self.behavior_index] - (self.traces['active'][self.behavior_index] + compute_time)))
+                    # logging.info("Client {} is not active: {} - norm: {} - inactive: {} - curr_time: {} - finish_time {}, behavior_index: {}, total_time: {}, end_time: {}".format(self.client_id, self.traces['active'][self.behavior_index], norm_time, self.traces['inactive'][self.behavior_index], curr_time, self.traces['finish_time'], self.behavior_index, total_time, end_time))
+                    return (False, self.traces['inactive'][self.behavior_index] - end_time)
+                elif max(norm_time, self.traces['active'][self.behavior_index]) + communication_time > self.traces['inactive'][self.behavior_index]:
+                    logging.info("Client {} has communication bottleneck: {} ".format(self.client_id, self.traces['inactive'][self.behavior_index] - (self.traces['active'][self.behavior_index] + communication_time)))
+                    # logging.info("Client {} is not active: {} - norm: {} - inactive: {} - curr_time: {} - finish_time {}, behavior_index: {}, total_time: {}, end_time: {}".format(self.client_id, self.traces['active'][self.behavior_index], norm_time, self.traces['inactive'][self.behavior_index], curr_time, self.traces['finish_time'], self.behavior_index, total_time, end_time))
+                    return (False, self.traces['inactive'][self.behavior_index] - end_time)
+                elif end_time > self.traces['inactive'][self.behavior_index]:
+                    logging.info("Client {} has both bottlenecks: {} ".format(self.client_id, self.traces['inactive'][self.behavior_index] - end_time))
+                    # logging.info("Client {} is not active: {} - norm: {} - inactive: {} - curr_time: {} - finish_time {}, behavior_index: {}, total_time: {}, end_time: {}".format(self.client_id, self.traces['active'][self.behavior_index], norm_time, self.traces['inactive'][self.behavior_index], curr_time, self.traces['finish_time'], self.behavior_index, total_time, end_time))
+                    return (False, self.traces['inactive'][self.behavior_index] - end_time)
+        except Exception as e:
+            logging.info("Exception in can_participate: {}".format(e))
+            return (True, 0)
 
     def get_new_network_bandwidth(self):
         """

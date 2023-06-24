@@ -266,7 +266,7 @@ class ClientManager:
             self.count += 1
 
             clients_online = self.getFeasibleClients(cur_time)
-
+            # logging.info(f"clients_online: {clients_online}")
             if len(clients_online) <= num_of_clients:
                 return clients_online
 
