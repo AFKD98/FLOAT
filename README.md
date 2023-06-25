@@ -121,4 +121,3 @@ For each submission, please add unit tests to the corresponding changes and make
 
 If you have any questions or comments, please join our [Slack](https://join.slack.com/t/fedscale/shared_invite/zt-uzouv5wh-ON8ONCGIzwjXwMYDC2fiKw) channel, or email us ([fedscale@googlegroups.com](mailto:fedscale@googlegroups.com)). 
 
-# FLOAT
