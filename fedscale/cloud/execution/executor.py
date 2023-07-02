@@ -162,7 +162,7 @@ class Executor(object):
             testing_sets = DataPartitioner(data=test_dataset, args=self.args, numOfClass=self.args.num_class, seed=self.this_rank, isTest=True)
             testing_sets.partition_data_helper(num_clients=self.num_executors, data_map_file=self.args.data_map_file)
             
-            validation_sets = DataPartitioner(data=test_dataset, args=self.args, numOfClass=self.args.num_class, seed=self.this_rank, isVal=True)
+            validation_sets = DataPartitioner(data=train_dataset, args=self.args, numOfClass=self.args.num_class, seed=self.this_rank, isVal=True)
             validation_sets.partition_data_helper(num_clients=self.num_executors, data_map_file=self.args.data_map_file)
             
             # training_sets.partition_data_helper(

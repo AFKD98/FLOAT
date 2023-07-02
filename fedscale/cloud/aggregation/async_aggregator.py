@@ -224,6 +224,11 @@ class AsyncAggregator(Aggregator):
                 # logging.info("HERE37")
                 # logging.info("Faraz BEFORE - self.model_weights weights: {}".format(self.model_weights))
                 for client_weight in client_weights:
+                    self.clients_aggregated.append(client_weight['client_id'])
+                    if self.round not in self.clients_aggregated_per_round:
+                        self.clients_aggregated_per_round[self.round] = []
+                    else:
+                        self.clients_aggregated_per_round[self.round].append(client_weight['client_id'])
                     update_weights = client_weight['update_weight']
                     if type(update_weights) is dict:
                         update_weights = [x for x in update_weights.values()]

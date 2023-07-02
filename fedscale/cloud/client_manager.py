@@ -12,7 +12,8 @@ class ClientManager:
     def __init__(self, mode, args, sample_seed=233):
         self.client_metadata = {}
         self.client_on_hosts = {}
-        self.mode = mode
+        self.mode = args.mode
+        logging.info("Client manager mode: {}".format(self.mode))
         self.filter_less = args.filter_less
         self.filter_more = args.filter_more
 
@@ -24,7 +25,9 @@ class ClientManager:
 
         self.feasibleClients = []
         self.rng = Random()
-        self.rng.seed(sample_seed)
+        # Set the random seed for reproducibility
+        random.seed(sample_seed)
+        # self.rng.seed(sample_seed)
         self.count = 0
         self.feasible_samples = 0
         self.user_trace = None
@@ -266,7 +269,8 @@ class ClientManager:
             self.count += 1
 
             clients_online = self.getFeasibleClients(cur_time)
-            # logging.info(f"clients_online: {clients_online}")
+            if self.mode == "fedAvg":
+                clients_online = self.getAllClients()
             if len(clients_online) <= num_of_clients:
                 return clients_online
 
@@ -279,10 +283,16 @@ class ClientManager:
             elif self.mode == "FLOAT":
                 pickled_clients = self.ucb_sampler.select_participant(
                     num_of_clients, feasible_clients=clients_online_set)
+            elif self.mode == "fedAvg":
+                self.rng.shuffle(clients_online)
+                client_len = min(num_of_clients, len(clients_online) - 1)
+                # pickled_clients = clients_online[:client_len]
+                pickled_clients = random.sample(clients_online, client_len)
             else:
                 self.rng.shuffle(clients_online)
                 client_len = min(num_of_clients, len(clients_online) - 1)
-                pickled_clients = clients_online[:client_len]
+                pickled_clients = random.sample(clients_online, client_len)
+                # pickled_clients = clients_online[:client_len]
 
             return pickled_clients
         except Exception as e:

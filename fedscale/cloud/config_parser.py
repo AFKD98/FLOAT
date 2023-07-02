@@ -137,7 +137,7 @@ parser.add_argument('--num_loaders', type=int, default=2)
 parser.add_argument('--eval_interval', type=int, default=5)
 parser.add_argument('--sample_seed', type=int, default=233)  # 123 #233
 parser.add_argument('--test_ratio', type=float, default=1.0)
-parser.add_argument('--val_ratio', type=float, default=0.2)
+parser.add_argument('--val_ratio', type=float, default=0.001)
 parser.add_argument('--loss_decay', type=float, default=0.2)
 parser.add_argument('--exploration_min', type=float, default=0.3)
 parser.add_argument('--cut_off_util', type=float,

@@ -116,7 +116,8 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
             #Faraz - dynamically set the per round total workers
             self.total_worker = args.total_worker if args.total_worker > 0 else args.initial_total_worker
             #Faraz - mode
-            self.mode = args.mode
+            self.mode = self.args.mode
+            logging.info(f"self.args.mode: {self.mode}")
             #Faraz - add clients dropout information
             self.clients_to_run = []
             self.clients_dropped_out = []
@@ -135,6 +136,8 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
             #Faraz - client participation rate
             self.client_participation_rate = {}
             self.participation_per_round = {}
+            self.clients_aggregated_per_round = {}
+            self.clients_aggregated = []
             #Faraz - client resource usage
             self.total_resources_selected_clients = []
             self.total_virtual_time_selected_clients = []
@@ -193,6 +196,8 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
             logging.info(f"Round {self.round}:")
             logging.info(f"Wall clock time: {round(self.global_virtual_clock)}")
             logging.info(f"Selected participants to run: {clients_to_run}")
+            logging.info("round: {}, clients aggregated: {}".format(self.round, self.clients_aggregated))
+            logging.info("Number of clients aggregated: {}".format(len(self.clients_aggregated)))
             logging.info('Number of sampled participants: {}'.format(len(self.sampled_participants)))
             logging.info(f"Resource wastage of dropped clients: {self.dropped_clients_resource_usage_per_round[self.round]}")
             logging.info(f"Resource durations of dropped clients: {self.dropped_clients_resource_durations_per_round[self.round]}")
@@ -212,6 +217,7 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
             
             self.clients_dropped_out = []
             self.total_resources_selected_clients = []
+            self.clients_aggregated = []
             # logging.info('length of client results buffer: {}'.format(len(self.client_results_buffer)))
             # logging.info('length of sampled participants: {}'.format(len(self.clients_to_run)))
             #Faraz - find mean of deadline differences greater than and less than 0
@@ -651,10 +657,13 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
                             for k in workers_sorted_by_completion_time[num_clients_to_collect:]]
                 
                 max_time = 0
-                for client in clients_to_run:
-                    if client_completion_times[client] > max_time:
-                        max_time = client_completion_times[client]
-                round_duration = max_time
+                if len(clients_to_run) > 0:
+                    for client in clients_to_run:
+                        if client_completion_times[client] > max_time:
+                            max_time = client_completion_times[client]
+                    round_duration = max_time
+                else:
+                    round_duration = max_time
                 
                 completionTimes.sort()
                 
@@ -699,7 +708,7 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
     def _is_last_result_in_round(self):
         return self.model_in_update == self.tasks_round
 
-    def select_participants(self, select_num_participants, overcommitment=1.3, sort_clients = True):
+    def select_participants(self, select_num_participants, overcommitment=1.3, sort_clients = False):
         """Select clients for next round.
 
         Args:
@@ -877,48 +886,45 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
             
             # logging.info("HERE8")
             self.print_stats(clients_to_run)
-            # logging.info(f"Selected participants to run: {clients_to_run}")
-            # logging.info(f"Selected participants dropped due to low resources: {self.dropped_clients_resource_usage_per_round[self.round]}")
-            # logging.info(f"Resource wastage of dropped clients: {self.dropped_clients_resource_usage_per_round[self.round]}")
-            # logging.info(f"Deadline differences of clients: {self.deadline_differences_per_round[self.round]}")
-            # logging.info(f"Mean of deadline differences: {np.mean(self.deadline_differences_per_round[self.round])}")
-            # logging.info(f"clients participation rates: {self.client_participation_rate}")
-            # logging.info(f"Participation per round: {self.participation_per_round[self.round]}")
             # logging.info("HERE9")
+            if len(self.clients_to_run) > 0:
+                # Issue requests to the resource manager; Tasks ordered by the completion time
+                self.resource_manager.register_tasks(clients_to_run)
+                self.tasks_round = len(clients_to_run)
 
-            # Issue requests to the resource manager; Tasks ordered by the completion time
-            self.resource_manager.register_tasks(clients_to_run)
-            self.tasks_round = len(clients_to_run)
+                # Update executors and participants
+                if self.experiment_mode == commons.SIMULATION_MODE:
+                    self.sampled_executors = list(
+                        self.individual_client_events.keys())
+                else:
+                    self.sampled_executors = [str(c_id)
+                                            for c_id in self.sampled_participants]
+                self.round_stragglers = round_stragglers
+                self.virtual_client_clock = virtual_client_clock
+                self.flatten_client_duration = np.array(flatten_client_duration)
+                self.round_duration = round_duration
+                self.model_in_update = 0
+                self.test_result_accumulator = []
+                self.stats_util_accumulator = []
+                self.client_training_results = []
+                self.loss_accumulator = []
+                self.update_default_task_config()
 
-            # Update executors and participants
-            if self.experiment_mode == commons.SIMULATION_MODE:
-                self.sampled_executors = list(
-                    self.individual_client_events.keys())
+                if self.round >= self.args.rounds:
+                    self.broadcast_aggregator_events(commons.SHUT_DOWN)
+                # if self.round % self.args.eval_interval == 0 or self.round == 1:
+                if self.round % 50 == 0 or self.round == 1:
+                    self.broadcast_aggregator_events(commons.UPDATE_MODEL)
+                    self.broadcast_aggregator_events(commons.MODEL_TEST)
+                    if self.round % 100 == 0 or self.round == 1:
+                        self.broadcast_aggregator_events(commons.CLIENT_VALIDATE)
+                else:
+                    self.broadcast_aggregator_events(commons.UPDATE_MODEL)
+                    self.broadcast_aggregator_events(commons.START_ROUND)
             else:
-                self.sampled_executors = [str(c_id)
-                                        for c_id in self.sampled_participants]
-            self.round_stragglers = round_stragglers
-            self.virtual_client_clock = virtual_client_clock
-            self.flatten_client_duration = np.array(flatten_client_duration)
-            self.round_duration = round_duration
-            self.model_in_update = 0
-            self.test_result_accumulator = []
-            self.stats_util_accumulator = []
-            self.client_training_results = []
-            self.loss_accumulator = []
-            self.update_default_task_config()
-
-            if self.round >= self.args.rounds:
-                self.broadcast_aggregator_events(commons.SHUT_DOWN)
-            # if self.round % self.args.eval_interval == 0 or self.round == 1:
-            if self.round % 50 == 0 or self.round == 1:
-                self.broadcast_aggregator_events(commons.UPDATE_MODEL)
-                self.broadcast_aggregator_events(commons.MODEL_TEST)
-                if self.round % 100 == 0 or self.round == 1:
-                    self.broadcast_aggregator_events(commons.CLIENT_VALIDATE)
-            else:
-                self.broadcast_aggregator_events(commons.UPDATE_MODEL)
-                self.broadcast_aggregator_events(commons.START_ROUND)
+                #Faraz - Skip round if no clients to run
+                self.round_completion_handler()
+                logging.info('No clients to run, skipping round')
         except Exception as e:
             logging.error('Error in round completion handler: ', e)
             raise e
@@ -1321,6 +1327,9 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
                                     self.round_completion_handler()
                                 # logging.info("HERE2")
                             elif self.mode == 'oort':
+                                if len(self.stats_util_accumulator) == self.tasks_round:
+                                    self.round_completion_handler()
+                            else:
                                 if len(self.stats_util_accumulator) == self.tasks_round:
                                     self.round_completion_handler()
 
