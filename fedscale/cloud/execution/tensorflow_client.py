@@ -43,7 +43,7 @@ class TensorflowClient(ClientBase):
         )
 
     @overrides
-    def train(self, client_data, model, conf):
+    def train(self, client_data, model, conf, local_steps=None):
         """
         Perform a training task.
         :param client_data: client training dataset

@@ -5,7 +5,7 @@ from random import Random
 from typing import Dict, List
 import random
 from fedscale.cloud.internal.client_metadata import ClientMetadata
-
+import numpy as np
 
 class ClientManager:
 
@@ -32,7 +32,6 @@ class ClientManager:
         self.feasible_samples = 0
         self.user_trace = None
         self.args = args
-
         
         if args.device_avail_file is not None:
             with open(args.device_avail_file, 'rb') as fin:
@@ -42,6 +41,75 @@ class ClientManager:
     #Faraz - get client behavior index
     def get_client_behavior_index(self, client_id):
         return self.client_metadata[self.getUniqueId(0, client_id)].behavior_index
+    
+    def get_client_local_state(self, client_id):
+        local_state = self.client_metadata[self.getUniqueId(0, client_id)].local_state
+        compute = local_state['computation']
+        bandwidth = local_state['communication']
+        deadline_difference = local_state['deadline_difference']
+        translated_local_state = {}
+        logging.info('Faraz - bandwidth: {}, compute: {}, deadline_difference: {}'.format(bandwidth, compute, deadline_difference))
+        # if bandwidth < 53760:
+        #     translated_local_state['communication'] = 'low'
+        # elif bandwidth < 85913:
+        #     translated_local_state['communication'] = 'medium'
+        # else:
+        #     translated_local_state['communication'] = 'high'
+        
+        #get all compute values
+        resource_values = self.getAllClientsResources()
+        compute_values = [x['computation_power'] for x in resource_values]
+        communication_values = [x['communication_kbps'] for x in resource_values]
+        max_compute = max(compute_values)
+        q1, q2, q3, q4 = 0, 0, 0, 0
+        #fit translated_local_states into buckets for computation and communication according to the percentiles
+        resources_to_categorize = ['computation', 'communication']
+        for resource in resources_to_categorize:
+            if resource == 'computation':
+                resource_var = compute
+                q1, q2, q3, q4 = np.percentile(compute_values, [10, 20, 30, 40])
+            else:
+                resource_var = bandwidth
+                q1, q2, q3, q4 = np.percentile(communication_values, [10, 20, 30, 40])
+            #see which bucket the compute value falls into from all percentiles
+            if resource_var < q1:
+                translated_local_state[resource] = '1'
+            elif resource_var < q2:
+                translated_local_state[resource] = '2'
+            elif resource_var < q3:
+                translated_local_state[resource] = '3'
+            elif resource_var < q4:
+                translated_local_state[resource] = '4'
+            else:
+                translated_local_state[resource] = '5'
+                    
+        # if compute < q1:
+        #     translated_local_state['computation'] = 'low'
+        # elif compute < q2:
+        #     translated_local_state['computation'] = 'medium'
+        # else:
+        #     translated_local_state['computation'] = 'high'
+        
+        if deadline_difference > -2:
+            translated_local_state['deadline_difference'] = '1'
+        elif deadline_difference > -10:
+            translated_local_state['deadline_difference'] = '2'
+        elif deadline_difference > -20:
+            translated_local_state['deadline_difference'] = '3'
+        elif deadline_difference > -30:
+            translated_local_state['deadline_difference'] = '4'
+        else:
+            translated_local_state['deadline_difference'] = '5'
+                    
+        return translated_local_state
+            
+    
+    def getAllClientsResources(self):
+        ''' Returns a list of all clients' resources '''
+        return [self.client_metadata[self.getUniqueId(0, client_id)].get_client_resources() for client_id in self.feasibleClients]
+    
+    def get_client_local_states(self, client_ids):
+        return [self.client_metadata[self.getUniqueId(0, client_id)].local_state for client_id in client_ids]
     
     def register_client(self, host_id: int, client_id: int, size: int, speed: Dict[str, float], possible_bandwidths: List,
                         duration: float = 1) -> None:
@@ -94,10 +162,10 @@ class ClientManager:
             self.ucb_sampler.update_duration(
                 client_id, exe_cost['computation'] + exe_cost['communication'])
 
-    def get_completion_time(self, client_id, batch_size, local_steps, upload_size, download_size):
+    def get_completion_time(self, client_id, batch_size, local_steps, upload_size, download_size, variable_resources=False):
         return self.client_metadata[self.getUniqueId(0, client_id)].get_completion_time(
             batch_size=batch_size, local_steps=local_steps,
-            upload_size=upload_size, download_size=download_size
+            upload_size=upload_size, download_size=download_size, variable_resources=variable_resources
         )
     
     def get_completion_time_with_variable_network(self, client_id, batch_size, local_steps, upload_size, download_size):
@@ -216,15 +284,16 @@ class ClientManager:
         if self.user_trace is None:
             clients_online = self.feasibleClients
         else:
+            # logging.info(f'Faraz - Getting feasible clients at time {round(cur_time)}')
             clients_online = [client_id for client_id in self.feasibleClients if self.client_metadata[self.getUniqueId(
                 0, client_id)].is_active(cur_time)]
-
-        # logging.info(f"Wall clock time: {round(cur_time)}, {len(clients_online)} clients online, " +
-        #              f"{len(self.feasibleClients) - len(clients_online)} clients offline")
+            
+        logging.info(f"Wall clock time: {round(cur_time)}, {len(clients_online)} clients online, " +
+                     f"{len(self.feasibleClients) - len(clients_online)} clients offline")
 
         return clients_online
     
-    def getClientFeasibilityForParticipation(self, client_id, cur_time, upload_size, download_size, random_client_quota = False, deadline = 0):
+    def getClientFeasibilityForParticipation(self, client_id, cur_time, upload_size = 0, download_size = 0, random_client_quota = False, deadline = 0):
         try:
             if self.user_trace is None:
                 return (True, 0)
@@ -250,7 +319,9 @@ class ClientManager:
             logging.info(f"Faraz - Exception in getClientFeasibilityForParticipation: {e}")
             return (False, 0)
 
-
+    def isClientActivewithDeadline(self, client_id, cur_time):
+        return self.client_metadata[self.getUniqueId(0, client_id)].is_activewithDeadline(cur_time)
+    
     def isClientActive(self, client_id, cur_time):
         return self.client_metadata[self.getUniqueId(0, client_id)].is_active(cur_time)
 
@@ -269,8 +340,8 @@ class ClientManager:
             self.count += 1
 
             clients_online = self.getFeasibleClients(cur_time)
-            if self.mode == "fedAvg":
-                clients_online = self.getAllClients()
+            # if self.mode == "fedAvg":
+            #     clients_online = self.getAllClients()
             if len(clients_online) <= num_of_clients:
                 return clients_online
 
@@ -281,13 +352,16 @@ class ClientManager:
                 pickled_clients = self.ucb_sampler.select_participant(
                     num_of_clients, feasible_clients=clients_online_set)
             elif self.mode == "FLOAT":
-                pickled_clients = self.ucb_sampler.select_participant(
-                    num_of_clients, feasible_clients=clients_online_set)
+                self.rng.shuffle(clients_online)
+                client_len = min(num_of_clients, len(clients_online) - 1)
+                #Faraz - temporarily changing it for RL agent
+                pickled_clients = clients_online[:client_len]
             elif self.mode == "fedAvg":
                 self.rng.shuffle(clients_online)
                 client_len = min(num_of_clients, len(clients_online) - 1)
-                # pickled_clients = clients_online[:client_len]
-                pickled_clients = random.sample(clients_online, client_len)
+                #Faraz - temporarily changing it for RL agent
+                pickled_clients = clients_online[:client_len]
+                # pickled_clients = random.sample(clients_online, client_len)
             else:
                 self.rng.shuffle(clients_online)
                 client_len = min(num_of_clients, len(clients_online) - 1)

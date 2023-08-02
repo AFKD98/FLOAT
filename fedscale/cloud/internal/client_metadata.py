@@ -15,11 +15,13 @@ class ClientMetadata:
         :param speed: computation and communication speed of the client.
         :param traces: list of client availability traces.
         """
+        random.seed(client_id)
         self.host_id = host_id
         self.client_id = client_id
         self.compute_speed = speed['computation']
         self.compute_speed_with_inference = speed['computation']
         self.bandwidth = speed['communication']
+        self.local_state = {'computation': self.compute_speed_with_inference, 'communication': self.bandwidth, 'deadline_difference': 0}
         #Faraz - get 1 random value from possible_bandwidths
         if len(possible_bandwidths)<=0:
             self.possible_bandwidths = [self.bandwidth]
@@ -68,13 +70,37 @@ class ClientMetadata:
 
         if norm_time > self.traces['inactive'][self.behavior_index]:
             self.behavior_index += 1
+            # logging.info("Client {} behavior index increasing {}".format(self.client_id, self.behavior_index))
+
+        self.behavior_index %= len(self.traces['active'])
+        if self.traces['active'][self.behavior_index] <= norm_time <= self.traces['inactive'][self.behavior_index]:
+            # logging.info("Client {} is active: {} - norm: {} - inactive: {} - curr_time: {} - finish_time {}, behavior_index: {}".format(self.client_id, self.traces['active'][self.behavior_index], norm_time, self.traces['inactive'][self.behavior_index], cur_time, self.traces['finish_time'], self.behavior_index))
+            return True
+
+        return False
+    
+    def is_activewithDeadline(self, cur_time):
+        """
+        Decides whether the client is active at given cur_time
+        :param cur_time: time in seconds
+        :return: boolean
+        """
+        if self.traces is None:
+            return True, 0
+
+        norm_time = cur_time % self.traces['finish_time']
+
+        # if norm_time > self.traces['inactive'][self.behavior_index]:
+        #     self.behavior_index += 1
 
         self.behavior_index %= len(self.traces['active'])
 
         if self.traces['active'][self.behavior_index] <= norm_time <= self.traces['inactive'][self.behavior_index]:
-            return True
+            return True, 0
 
-        return False
+        self.local_state = {'computation': self.compute_speed_with_inference, 'communication': self.bandwidth, 'deadline_difference': self.traces['inactive'][self.behavior_index] - norm_time}
+        logging.info("Client {} is inactive: {} - norm: {} - inactive: {} - curr_time: {} - finish_time {}, behavior_index: {}".format(self.client_id, self.traces['active'][self.behavior_index], norm_time, self.traces['inactive'][self.behavior_index], cur_time, self.traces['finish_time'], self.behavior_index))
+        return False, self.traces['inactive'][self.behavior_index] - norm_time
     
     def can_participate(self, curr_time, compute_time, communication_time):
         """
@@ -97,6 +123,7 @@ class ClientMetadata:
             #Faraz - calculate end time based on whether request is recieved at start of active time or midway
             end_time = max(norm_time, self.traces['active'][self.behavior_index]) + total_time
             
+            self.local_state = {'computation': self.compute_speed_with_inference, 'communication': self.bandwidth, 'deadline_difference': self.traces['inactive'][self.behavior_index] - end_time}
             #Faraz - check which bottleneck is causing the client to be inactive
             if  end_time <= self.traces['inactive'][self.behavior_index]:
                 return (True,  0)
@@ -122,11 +149,11 @@ class ClientMetadata:
         Returns the new network bandwidth of the client
         :return: float
         """
-            
         self.bandwidth = random.sample(self.possible_bandwidths, 1)
         if type(self.bandwidth) is list:
             self.bandwidth = self.bandwidth[0]
         return self.bandwidth
+    
     
     def get_completion_time_with_variable_network(self, batch_size, local_steps, upload_size, download_size, augmentation_factor=3.0, add_cpu_noise=True):
         """
@@ -142,21 +169,25 @@ class ClientMetadata:
                 self.completion_time = {'computation': 10000000, 'communication': 10000000}
                 return self.completion_time
             
-                
             self.completion_time = {'computation': augmentation_factor * batch_size * local_steps*float(self.compute_speed_with_inference)/1000.,
                     'communication': (upload_size+download_size)/float(self.bandwidth)}
+            
             return self.completion_time
         except Exception as e:
             logging.info("Error in get_completion_time_with_variable_network: {}".format(e))
             
         
-    def get_completion_time(self, batch_size, local_steps, upload_size, download_size, augmentation_factor=3.0):
+    def get_completion_time(self, batch_size, local_steps, upload_size, download_size, augmentation_factor=3.0, variable_resources = False):
         """
            Computation latency: compute_speed is the inference latency of models (ms/sample). As reproted in many papers,
                                 backward-pass takes around 2x the latency, so we multiple it by 3x;
            Communication latency: communication latency = (pull + push)_update_size/bandwidth;
         """
-        self.completion_time = {'computation': augmentation_factor * batch_size * local_steps*float(self.compute_speed)/1000.,
+        if variable_resources:
+            self.completion_time = {'computation': augmentation_factor * batch_size * local_steps*float(self.compute_speed_with_inference)/1000.,
+                'communication': (upload_size+download_size)/float(self.bandwidth)}
+        else:
+            self.completion_time = {'computation': augmentation_factor * batch_size * local_steps*float(self.compute_speed)/1000.,
                 'communication': (upload_size+download_size)/float(self.bandwidth)}
         return self.completion_time
 

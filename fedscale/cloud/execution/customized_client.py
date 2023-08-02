@@ -35,7 +35,6 @@ class Customized_Client(TorchClient):
         self.make_model_rate()
         logging.info(f"Start to split model (CLIENT: {self.client_id}, MODEL RATE: {self.model_rate}) ...")
         self.local_parameters = split_model(model, self.model_rate)
-        logging.info(f"local_parameters: {self.local_parameters}")
         self.local_model = resnet18(model_rate=self.model_rate)
         self.local_model.load_state_dict(self.local_parameters)
         logging.info(f"Start to train (CLIENT: {self.client_id}) ...")

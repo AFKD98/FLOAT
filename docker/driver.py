@@ -115,15 +115,16 @@ def process_cmd(yaml_file, local=False):
             "ip": ps_ip,
             "port": ports[0]
         }
-        print(f"Starting aggregator container {ps_name} on {ps_ip}...")
+        print(f"Starting aggregator container {ps_name} on {ps_ip}...ports: {ports[0]}:30000")
         ps_cmd = f" docker run -i --name {ps_name} --network {yaml_conf['container_network']} -p {ports[0]}:30000 --mount type=bind,source={yaml_conf['data_path']},target=/FedScale/benchmark fedscale/fedscale-aggr"
     else:
         print(f"driver.py 92: yaml_conf: {yaml_conf}")
         print(f"Starting aggregator on {ps_ip}...")
         try:
             ps_cmd = f" python {yaml_conf['exp_path']}/{yaml_conf['aggregator_entry']} {conf_script} --this_rank=0 --num_executors={total_gpu_processes} --executor_configs={executor_configs} "
+            print(f"driver.py 125: ps_cmd: {ps_cmd}")
         except Exception as e:
-            print(f"driver.py: {e}")
+            print(f"Error driver.py: {e}")
             exit(1)
             
     with open(f"{job_name}_logging", 'wb') as fout:
@@ -145,13 +146,13 @@ def process_cmd(yaml_file, local=False):
         running_vms.add(worker)
 
         if use_container == "default":
-            print(f"Starting workers on {worker} ...")
+            print(f"Starting workers on {worker}...")
 
         for cuda_id in range(len(gpu)):
             for _ in range(gpu[cuda_id]):
                 if use_container == "docker":
                     exec_name = f"fedscale-exec{rank_id}-{time_stamp}"
-                    print(f'Starting executor container {exec_name} on {worker}')
+                    print(f'Starting executor container {exec_name} on {worker} ports: {ports[rank_id]}:32000')
                     ctnr_dict[exec_name] = {
                         "type": "executor",
                         "ip": worker,

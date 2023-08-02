@@ -15,11 +15,14 @@ import fedscale.cloud.logger.executor_logging as logger
 from fedscale.cloud.channels.channel_context import ClientConnections
 from fedscale.cloud.execution.tensorflow_client import TensorflowClient
 from fedscale.cloud.execution.torch_client import TorchClient
+from fedscale.cloud.execution.torch_client_quantized import TorchClientQuantized
 from fedscale.cloud.execution.data_processor import collate, voice_collate_fn
 from fedscale.cloud.execution.rl_client import RLClient
 from fedscale.cloud.fllibs import *
 from fedscale.dataloaders.divide_data import DataPartitioner, select_dataset
-
+from fedscale.utils.compressors.quantization import QSGDCompressor
+from fedscale.utils.compressors.pruning import Pruning
+import traceback
 
 class Executor(object):
     """Abstract class for FedScale executor.
@@ -31,45 +34,52 @@ class Executor(object):
 
     def __init__(self, args):
         # initiate the executor log path, and executor ips
-        logger.initiate_client_setting()
+        try:
+            logger.initiate_client_setting()
 
-        self.model_adapter = self.get_client_trainer(args).get_model_adapter(init_model())
-        self.training_requests_received = 0
-        self.args = args
-        self.num_executors = args.num_executors
-        # ======== env information ========
-        self.this_rank = args.this_rank
-        self.executor_id = str(self.this_rank)
+            self.model_adapter = self.get_client_trainer(args).get_model_adapter(init_model())
+            self.training_requests_received = 0
+            self.args = args
+            self.num_executors = args.num_executors
+            # ======== env information ========
+            self.this_rank = args.this_rank
+            self.executor_id = str(self.this_rank)
 
-        # ======== model and data ========
-        self.training_sets = self.test_dataset = None
+            # ======== model and data ========
+            self.training_sets = self.test_dataset = None
 
-        # ======== channels ========
-        self.aggregator_communicator = ClientConnections(
-            args.ps_ip, args.ps_port)
+            # ======== channels ========
+            self.aggregator_communicator = ClientConnections(
+                args.ps_ip, args.ps_port)
 
-        # ======== runtime information ========
-        self.collate_fn = None
-        self.round = 0
-        self.start_run_time = time.time()
-        self.received_stop_request = False
-        self.event_queue = collections.deque()
+            # ======== runtime information ========
+            self.collate_fn = None
+            self.round = 0
+            self.start_run_time = time.time()
+            self.received_stop_request = False
+            self.event_queue = collections.deque()
 
-        self.client_accuracies = {}
-        self.client_losses = {}
-        
-        if args.wandb_token != "":
-            os.environ['WANDB_API_KEY'] = args.wandb_token
-            self.wandb = wandb
-            if self.wandb.run is None:
-                self.wandb.init(project=f'fedscale-{args.job_name}',
-                                name=f'executor{args.this_rank}-{args.time_stamp}',
-                                group=f'{args.time_stamp}')
-            else:
-                logging.error("Warning: wandb has already been initialized")
+            self.client_accuracies = {}
+            self.client_losses = {}
+            #Faraz - optimizations
+            self.q_compressor = QSGDCompressor(random=True, cuda=False)
+            self.pruning = Pruning()
             
-        else:
-            self.wandb = None
+            if args.wandb_token != "":
+                os.environ['WANDB_API_KEY'] = args.wandb_token
+                self.wandb = wandb
+                if self.wandb.run is None:
+                    self.wandb.init(project=f'fedscale-{args.job_name}',
+                                    name=f'executor{args.this_rank}-{args.time_stamp}',
+                                    group=f'{args.time_stamp}')
+                else:
+                    logging.error("Warning: wandb has already been initialized")
+                
+            else:
+                self.wandb = None
+        except Exception as e:
+            logging.error(e)
+            raise e
         super(Executor, self).__init__()
 
     def setup_env(self):
@@ -240,6 +250,49 @@ class Executor(object):
             logging.error(e)
             raise e
 
+    def compress_model(self, model, q_bit=16):
+        try:
+            # logging.info('HERE50')
+            if type(model) is dict:
+                model = [x for x in model.values()]
+            # logging.info(f'Faraz debug - q_bit: {q_bit} and model type: {type(model)}')
+            compressed_weights = []
+            total_size = 0
+            # logging.info('HERE53')
+            for weight in model:
+                # logging.info('HERE54')
+                compressed_weight, size = self.q_compressor.compress(weight, n_bit = q_bit)
+                # logging.info('HERE55')
+                total_size += int(size)
+                # logging.info('HERE56')
+                compressed_weights.append(compressed_weight)
+                # logging.info('HERE57')
+                
+            return compressed_weights, total_size
+        except Exception as e:
+            logging.error('Error in compressing model: ', e)
+            raise e
+    
+    def prune_model(self, pruned_model, client_data, prune_percentage=0.25):
+        try:
+            pruned_model, reduction_ratio = self.pruning.prune_model(pruned_model, 0.45, client_data)
+            return pruned_model, reduction_ratio
+        
+        except Exception as e:
+            logging.error('Error in pruning model: ', e)
+            raise e
+        
+    def decompress_model(self, model, q_bit=16):
+        try:
+            decompressed_weights = []
+            for weight in model:
+                decompressed_weight = self.q_compressor.decompress(weight, n_bit=q_bit)
+                decompressed_weights.append(decompressed_weight)
+            return decompressed_weights
+        except Exception as e:
+            logging.error('Error in decompressing model: ', e)
+            raise e
+
     def Train(self, config):
         """Load train config and data to start training on that client
 
@@ -251,16 +304,21 @@ class Executor(object):
 
         """
         try:
-            client_id, train_config = config['client_id'], config['task_config']
-            # logging.info(f"Received client train request for client {client_id}")
+            client_id, train_config, optimization = config['client_id'], config['task_config'], config['optimization']
+            # logging.info(f"Received client train request for client {client_id} with optimization {optimization}")
             self.training_requests_received+=1
             if 'model' not in config or not config['model']:
                 raise "The 'model' object must be a non-null value in the training config."
             client_conf = self.override_conf(train_config)
-            train_res = self.training_handler(
-                client_id=client_id, conf=client_conf, model=config['model'])
-
+            try:
+                train_res = self.training_handler(
+                    client_id=client_id, conf=client_conf, model=config['model'], optimization=optimization)
+            except Exception as e:
+                logging.error(f"Error in training_handler: {e} of client {client_id}")
+                raise e
+            # logging.info(f"Training completed for client {client_id}")
             # Report execution completion meta information
+            # logging.info(f'HERE60 for client: {client_id}')
             response = self.aggregator_communicator.stub.CLIENT_EXECUTE_COMPLETION(
                 job_api_pb2.CompleteRequest(
                     client_id=str(client_id), executor_id=self.executor_id,
@@ -268,11 +326,12 @@ class Executor(object):
                     meta_result=None, data_result=None
                 )
             )
+            # logging.info(f'HERE61 for client: {client_id}') 
             self.dispatch_worker_events(response)
-
+            # logging.info(f'HERE62 for client: {client_id}') 
             return client_id, train_res
         except Exception as e:
-            logging.error(f"Error in training: {e}")
+            logging.error(f"Error in training: {e} of client {client_id}")
             raise e
 
     def Test(self, config):
@@ -308,7 +367,7 @@ class Executor(object):
         self.client_losses[client_id] = test_loss
         # logging.info(f"Client {client_id} - Validation Accuracy: {acc} - Top 5 Accuracy: {acc_5} - Loss: {test_loss}")
         
-    def Val(self, config, round, clients):
+    def Val(self, config, round, clients, event):
         """Load train config and data to start training on that client
 
         Args:
@@ -319,31 +378,46 @@ class Executor(object):
 
         """
         try:
+            self.client_accuracies = {}
+            self.client_losses = {}
+            logging.info(f"Received client validation request for clients {clients} for round {round}")
             for client_id in clients:
                 test_res = self.validation_handler(client_id)
                 test_res = {'executorId': client_id, 'results': test_res}
                 
-                # Report execution completion information
+
+            logging.info(f"Round: {round}")
+            logging.info(f"Validation accuracies: {self.client_accuracies}")
+            logging.info(f"Validation losses: {self.client_losses}")
+            if len(self.client_accuracies) > 9:
+                #calculate the average accuracy
+                avg_acc = sum(self.client_accuracies.values()) / len(self.client_accuracies)
+                #calculate top 10% accuracy
+                sorted_acc = sorted(self.client_accuracies.values(), reverse=True)
+                top_10_acc = sum(sorted_acc[:int(len(sorted_acc) * 0.1)]) / int(len(sorted_acc) * 0.1)
+                #calculate bottom 10% accuracy
+                bottom_10_acc = sum(sorted_acc[-int(len(sorted_acc) * 0.1):]) / int(len(sorted_acc) * 0.1)
+                logging.info(f"Average accuracy: {avg_acc}, Top 10% accuracy: {top_10_acc}, Bottom 10% accuracy: {bottom_10_acc}")
+            # Report execution completion information
+            if event == commons.CLIENT_VALIDATE:
                 response = self.aggregator_communicator.stub.CLIENT_EXECUTE_COMPLETION(
                     job_api_pb2.CompleteRequest(
                         client_id=self.executor_id, executor_id=self.executor_id,
                         event=commons.CLIENT_VALIDATE, status=True, msg=None,
-                        meta_result=None, data_result=self.serialize_response(test_res)
+                        meta_result=None, data_result=self.serialize_response(self.client_accuracies)
                     )
                 )
                 self.dispatch_worker_events(response)
-            logging.info(f"Round: {round}")
-            logging.info(f"Validation accuracies: {self.client_accuracies}")
-            logging.info(f"Validation losses: {self.client_losses}")
-            #calculate the average accuracy
-            avg_acc = sum(self.client_accuracies.values()) / len(self.client_accuracies)
-            #calculate top 10% accuracy
-            sorted_acc = sorted(self.client_accuracies.values(), reverse=True)
-            top_10_acc = sum(sorted_acc[:int(len(sorted_acc) * 0.1)]) / int(len(sorted_acc) * 0.1)
-            #calculate bottom 10% accuracy
-            bottom_10_acc = sum(sorted_acc[-int(len(sorted_acc) * 0.1):]) / int(len(sorted_acc) * 0.1)
-            logging.info(f"Average accuracy: {avg_acc}, Top 10% accuracy: {top_10_acc}, Bottom 10% accuracy: {bottom_10_acc}")
-            return client_id, test_res
+            else:
+                response = self.aggregator_communicator.stub.CLIENT_EXECUTE_COMPLETION(
+                    job_api_pb2.CompleteRequest(
+                        client_id=self.executor_id, executor_id=self.executor_id,
+                        event=commons.CLIENT_VALIDATE_ALL, status=True, msg=None,
+                        meta_result=None, data_result=self.serialize_response(self.client_accuracies)
+                    )
+                )
+                self.dispatch_worker_events(response)
+            
 
         except Exception as e:
             logging.error(f"Error in Validation: {e}")
@@ -401,8 +475,26 @@ class Executor(object):
             raise "Currently, FedScale supports tensorflow and pytorch."
         except Exception as e:
             raise e
+        
+    def get_quantized_client_trainer(self, conf):
+        """
+        Returns a framework-specific client that handles training and evaluation.
+        :param conf: job config
+        :return: framework-specific client instance
+        """
+        try:
+            if conf.engine == commons.TENSORFLOW:
+                return TensorflowClient(conf)
+            elif conf.engine == commons.PYTORCH:
+                if conf.task == 'rl':
+                    return RLClient(conf)
+                else:
+                    return TorchClientQuantized(conf)
+            raise "Currently, FedScale supports tensorflow and pytorch."
+        except Exception as e:
+            raise e
 
-    def training_handler(self, client_id, conf, model):
+    def training_handler(self, client_id, conf, model, optimization=None):
         """Train model given client id
 
         Args:
@@ -414,7 +506,27 @@ class Executor(object):
 
         """
         try:
-            self.model_adapter.set_weights(model)
+            pruned_model = None
+            q_bits = 16
+            local_steps = None
+            logging.info(f"Faraz - debug optimizaiton {optimization} in client {client_id}")
+            if optimization and 'partial' in optimization:
+                local_steps_reduction= int(optimization.split('_')[1])
+                local_steps = int(local_steps_reduction*0.01*self.args.local_steps)
+            if optimization and 'quantization' in optimization:
+                q_bits = int(optimization.split('_')[1])
+                # logging.info(f"Faraz - debug Before Training client {client_id} with model {model}")
+                if optimization:
+                    model = self.decompress_model(model, q_bit=q_bits)
+                # logging.info(f"AFTER Faraz - debug optimizaiton {optimization} in client {client_id}")
+            # logging.info(f"Faraz - debug After Training client {client_id} with model {model}")
+            # for w in model:
+            #     logging.info('model weights: {}'.format(w.shape))
+            
+            # if optimization != None:
+            # logging.info('HERE45 for client {}'.format(client_id))
+            # if optimization != None:
+            #     logging.info('HERE47')
             conf.client_id = client_id
             conf.tokenizer = tokenizer
             client_data = self.training_sets if self.args.task == "rl" else \
@@ -422,13 +534,47 @@ class Executor(object):
                             batch_size=conf.batch_size, args=self.args,
                             collate_fn=self.collate_fn
                             )
+            
+            # logging.info(f'HERE46 for client {client_id}')
+            #Faraz - Handle pruning here after train_data is loaded
+            if optimization and 'pruning' in optimization:
+                prune_percentage = float(optimization.split('_')[1])
+                self.model_adapter.set_weights(model)
+                pruned_model, reduction_ratio = self.prune_model(self.model_adapter.get_model(), client_data, prune_percentage)
+                # Get the weights as a list of torch tensors
+                # weights_list = [weight.detach().cpu() for weight in pruned_model.parameters()]
+                weights_list = [params.data.clone().cpu() for params in pruned_model.state_dict().values()]
+                
+                logging.info(f'Faraz - debug reduction_ratio: {reduction_ratio}')
+                #compare shape of model and pruned model
+                # for w_m, w_p in zip(model, weights_list):
+                #     logging.info('model weights: {}'.format(w_m.shape))
+                #     logging.info('pruned model weights: {}'.format(w_p.shape))
+                self.model_adapter.set_weights(weights_list)
+                
+                # logging.info(f'HERE47 for client {client_id}')
             client = self.get_client_trainer(self.args)
-            train_res = client.train(
-                client_data=client_data, model=self.model_adapter.get_model(), conf=conf)
-
+            #Faraz - getting quantized aware trainer
+            if optimization != None:
+                client = self.get_client_trainer(self.args)
+            # if optimization != None:
+            # logging.info(f'HERE48 for client {client_id}')
+            try:
+                train_res = client.train(
+                    client_data=client_data, model=self.model_adapter.get_model(), conf=conf, local_steps=local_steps)
+            except Exception as e:
+                logging.error(f"Error in client.train {e}")
+                return None
+            # if optimization != None:
+            # logging.info(f'HERE49 for client {client_id}')
+            if optimization != None and 'quantization' in optimization:
+                train_res['update_weight'], size = self.compress_model(train_res['update_weight'], q_bit=q_bits)
+                train_res['optimization'] = optimization
+                # logging.info('Compressed model: {}'.format(train_res['update_weight']))
+            # logging.info(f'HERE51 for client {client_id}')
             return train_res
         except Exception as e:
-            logging.error(f"Training error: {e}")
+            logging.error(f"Training error {e} in client {client_id}")
             return None
 
     def validation_handler(self, client_id):
@@ -542,6 +688,8 @@ class Executor(object):
                         train_model = self.deserialize_response(request.data)
                         train_config['model'] = train_model
                         train_config['client_id'] = int(train_config['client_id'])
+                        # if train_config['optimization']:
+                        #     train_config['optimization'] = int(train_config['optimization'])
                         client_id, train_res = self.Train(train_config)
 
                         # Upload model updates
@@ -552,12 +700,13 @@ class Executor(object):
                                                         ))
                         future_call.add_done_callback(lambda _response: self.dispatch_worker_events(_response.result()))
                     
-                    if current_event == commons.CLIENT_VALIDATE:
+                    if current_event == commons.CLIENT_VALIDATE or current_event == commons.CLIENT_VALIDATE_ALL:
                         # logging.info("Received validation request meta from aggregator {} ...".format(self.deserialize_response(request.meta)))
                         # logging.info("Received validation request data from aggregator {} ...".format(self.deserialize_response(request.data)))
                         clients = self.deserialize_response(request.data)['clients']
                         round = self.deserialize_response(request.data)['round']
-                        self.Val(self.deserialize_response(request.meta), round, clients)
+                        self.Val(self.deserialize_response(request.meta), round, clients, current_event)
+                        
                     
                     elif current_event == commons.MODEL_TEST:
                         self.Test(self.deserialize_response(request.meta))

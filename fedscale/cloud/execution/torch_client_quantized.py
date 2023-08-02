@@ -12,9 +12,11 @@ from fedscale.cloud.execution.optimizers import ClientOptimizer
 from fedscale.cloud.internal.torch_model_adapter import TorchModelAdapter
 from fedscale.dataloaders.nlp import mask_tokens
 from fedscale.utils.model_test_module import test_pytorch_model
+# Faraz - adding quantization
+import torch.quantization as quant
 
 
-class TorchClient(ClientBase):
+class TorchClientQuantized(ClientBase):
     """Implements a PyTorch-based client for training and evaluation."""
 
     def __init__(self, args):
@@ -24,8 +26,7 @@ class TorchClient(ClientBase):
         """
         self.args = args
         self.optimizer = ClientOptimizer()
-        self.device = args.cuda_device if args.use_cuda else torch.device(
-            'cpu')
+        self.device = args.cuda_device if args.use_cuda else torch.device('cpu')
         if args.task == "detection":
             self.im_data = Variable(torch.FloatTensor(1).cuda())
             self.im_info = Variable(torch.FloatTensor(1).cuda())
@@ -36,8 +37,12 @@ class TorchClient(ClientBase):
         self.completed_steps = 0
         self.loss_squared = 0
 
+        # Enable quantization-aware training mode
+        self.model = None
+        self.quantized_model = None
+
     @overrides
-    def train(self, client_data, model, conf, local_steps=None):
+    def train(self, client_data, model, conf):
         """
         Perform a training task.
         :param client_data: client training dataset
@@ -46,15 +51,15 @@ class TorchClient(ClientBase):
         :return: training results
         """
         try:
-            if local_steps:
-                conf.local_steps = local_steps
             client_id = conf.client_id
             logging.info(f"Start to train (CLIENT: {client_id}) ...")
             tokenizer = conf.tokenizer
-            # logging.info('HERE51')
-            model = model.to(device=self.device)
-            model.train()
-            # logging.info('HERE52')
+
+            self.model = model.to(device=self.device)
+            self.model.train()  # Set the model to training mode
+            self.quantized_model = quant.quantize_dynamic(
+                self.model, {torch.nn.Linear}, dtype=torch.qint8)
+
             trained_unique_samples = min(
                 len(client_data.dataset), conf.local_steps * conf.batch_size)
             self.global_model = None
@@ -62,7 +67,7 @@ class TorchClient(ClientBase):
             if conf.gradient_policy == 'fed-prox':
                 # could be move to optimizer
                 self.global_model = [param.data.clone() for param in model.parameters()]
-            # logging.info('HERE53')
+
             optimizer = self.get_optimizer(model, conf)
             criterion = self.get_criterion(conf)
             error_type = None
@@ -71,17 +76,17 @@ class TorchClient(ClientBase):
             # use `while self.completed_steps < conf.local_steps * len(client_data)` instead
             while self.completed_steps < conf.local_steps:
                 try:
-                    self.train_step(client_data, conf, model, optimizer, criterion)
+                    self.train_step(client_data, conf, self.quantized_model, optimizer, criterion)
                 except Exception as ex:
                     error_type = ex
                     break
-            # logging.info('HERE54')
+
             state_dicts = model.state_dict()
             model_param = {p: state_dicts[p].data.cpu().numpy()
-                        for p in state_dicts}
+                           for p in state_dicts}
             results = {'client_id': client_id, 'moving_loss': self.epoch_train_loss,
-                    'trained_size': self.completed_steps * conf.batch_size,
-                    'success': self.completed_steps == conf.local_steps}
+                       'trained_size': self.completed_steps * conf.batch_size,
+                       'success': self.completed_steps == conf.local_steps}
 
             if error_type is None:
                 logging.info(f"Training of (CLIENT: {client_id}) completes, {results}")
@@ -202,7 +207,7 @@ class TorchClient(ClientBase):
                     self.im_data, self.im_info, self.gt_boxes, self.num_boxes)
 
                 loss = rpn_loss_cls + rpn_loss_box \
-                       + RCNN_loss_cls + RCNN_loss_bbox
+                    + RCNN_loss_cls + RCNN_loss_bbox
 
                 loss_rpn_cls = rpn_loss_cls.item()
                 loss_rpn_box = rpn_loss_box.item()
@@ -234,7 +239,7 @@ class TorchClient(ClientBase):
                     self.epoch_train_loss = temp_loss
                 else:
                     self.epoch_train_loss = (
-                                                    1. - conf.loss_decay) * self.epoch_train_loss + conf.loss_decay * temp_loss
+                        1. - conf.loss_decay) * self.epoch_train_loss + conf.loss_decay * temp_loss
 
             # ========= Define the backward loss ==============
             optimizer.zero_grad()
@@ -245,10 +250,15 @@ class TorchClient(ClientBase):
             self.optimizer.update_client_weight(
                 conf, model, self.global_model if self.global_model is not None else None)
 
+            # Quantization steps (optional, if needed)
+            quantized_model = quant.quantize_dynamic(
+                model, {torch.nn.Linear}, dtype=torch.qint8)
+
             self.completed_steps += 1
 
             if self.completed_steps == conf.local_steps:
-                break
+                # Quantize the model
+                self.quantized_model = quantized_model
 
     @overrides
     def test(self, client_data, model, conf, isVal=False):
@@ -265,8 +275,8 @@ class TorchClient(ClientBase):
         else:
             criterion = torch.nn.CrossEntropyLoss().to(device=self.device)
         test_loss, acc, acc_5, test_results = test_pytorch_model(conf.rank, model, client_data,
-                                                                 device=self.device, criterion=criterion,
-                                                                 tokenizer=conf.tokenizer, isVal=isVal,)
+                                                                device=self.device, criterion=criterion,
+                                                                tokenizer=conf.tokenizer, isVal=isVal, )
         if not isVal:
             logging.info(
                 "Test results: Eval_time {}, test_loss {}, test_accuracy {:.2f}%, "
