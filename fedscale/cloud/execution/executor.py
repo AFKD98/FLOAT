@@ -61,6 +61,8 @@ class Executor(object):
 
             self.client_accuracies = {}
             self.client_losses = {}
+            self.old_client_losses = {}
+            self.old_client_accuracies = {}
             #Faraz - optimizations
             self.q_compressor = QSGDCompressor(random=True, cuda=False)
             self.pruning = Pruning()
@@ -86,7 +88,7 @@ class Executor(object):
         """Set up experiments environment
         """
         logging.info(f"(EXECUTOR:{self.this_rank}) is setting up environ ...")
-        self.setup_seed(seed=1)
+        self.setup_seed(seed=6)
 
     def setup_communication(self):
         """Set up grpc connection
@@ -358,13 +360,23 @@ class Executor(object):
             logging.error(e)
             raise e
     
-    def log_validation_result(self, client_id, test_res):
-        """Faraz - log the validation result for each client"""
-        acc = round(test_res["top_1"] / test_res["test_len"], 4)
-        acc_5 = round(test_res["top_5"] / test_res["test_len"], 4)
-        test_loss = test_res["test_loss"] / test_res["test_len"]
-        self.client_accuracies[client_id] = acc
-        self.client_losses[client_id] = test_loss
+    def log_validation_result(self, client_id, test_res, old_acc):
+        try:
+            """Faraz - log the validation result for each client"""
+            acc = round(test_res["top_1"] / test_res["test_len"], 4)
+            acc_5 = round(test_res["top_5"] / test_res["test_len"], 4)
+            test_loss = test_res["test_loss"] / test_res["test_len"]
+            # logging.info(f'log_validation_result old_acc: {old_acc}')
+            if old_acc:
+                self.old_client_losses[client_id] = test_loss
+                self.old_client_accuracies[client_id] = acc
+                # logging.info(f"Client {client_id} - Old Validation Accuracy: {acc}")
+            else:
+                self.client_accuracies[client_id] = acc
+                self.client_losses[client_id] = test_loss
+        except Exception as e:
+            logging.error(f'Error in logging validation result: {e}')
+            raise e
         # logging.info(f"Client {client_id} - Validation Accuracy: {acc} - Top 5 Accuracy: {acc_5} - Loss: {test_loss}")
         
     def Val(self, config, round, clients, event):
@@ -382,13 +394,14 @@ class Executor(object):
             self.client_losses = {}
             logging.info(f"Received client validation request for clients {clients} for round {round}")
             for client_id in clients:
-                test_res = self.validation_handler(client_id)
+                test_res = self.validation_handler(client_id, False)
                 test_res = {'executorId': client_id, 'results': test_res}
                 
 
             logging.info(f"Round: {round}")
             logging.info(f"Validation accuracies: {self.client_accuracies}")
             logging.info(f"Validation losses: {self.client_losses}")
+            #Faraz - calculate the average accuracy, top 10% accuracy and bottom 10% accuracy
             if len(self.client_accuracies) > 9:
                 #calculate the average accuracy
                 avg_acc = sum(self.client_accuracies.values()) / len(self.client_accuracies)
@@ -398,13 +411,25 @@ class Executor(object):
                 #calculate bottom 10% accuracy
                 bottom_10_acc = sum(sorted_acc[-int(len(sorted_acc) * 0.1):]) / int(len(sorted_acc) * 0.1)
                 logging.info(f"Average accuracy: {avg_acc}, Top 10% accuracy: {top_10_acc}, Bottom 10% accuracy: {bottom_10_acc}")
+            
+            #get the difference between the old and new accuracies
+            diff = {}
+            # logging.info(f"Old validation accuracies: {self.old_client_accuracies}")
+            for client_id in self.client_accuracies:
+                if self.old_client_accuracies.get(client_id):
+                    diff[client_id] = self.client_accuracies[client_id] - self.old_client_accuracies[client_id]
+                    # self.old_client_accuracies.remove(client_id)
+                else:
+                    logging.info(f"Old accuracy not found for client {client_id}")
+                    diff[client_id] = self.client_accuracies[client_id]
+            logging.info(f"Average accuracy difference: {diff}")
             # Report execution completion information
             if event == commons.CLIENT_VALIDATE:
                 response = self.aggregator_communicator.stub.CLIENT_EXECUTE_COMPLETION(
                     job_api_pb2.CompleteRequest(
                         client_id=self.executor_id, executor_id=self.executor_id,
                         event=commons.CLIENT_VALIDATE, status=True, msg=None,
-                        meta_result=None, data_result=self.serialize_response(self.client_accuracies)
+                        meta_result=None, data_result=self.serialize_response(diff)
                     )
                 )
                 self.dispatch_worker_events(response)
@@ -560,6 +585,7 @@ class Executor(object):
             # if optimization != None:
             # logging.info(f'HERE48 for client {client_id}')
             try:
+                test_res = self.validation_handler(client_id, True)
                 train_res = client.train(
                     client_data=client_data, model=self.model_adapter.get_model(), conf=conf, local_steps=local_steps)
             except Exception as e:
@@ -577,7 +603,7 @@ class Executor(object):
             logging.error(f"Training error {e} in client {client_id}")
             return None
 
-    def validation_handler(self, client_id):
+    def validation_handler(self, client_id, old_acc):
         """Test model
 
         Args:
@@ -588,6 +614,8 @@ class Executor(object):
 
         """
         try:
+            # logging.info(f'validation_handler old_acc: {old_acc}')
+            
             # logging.info(f"Total training requests received: {self.training_requests_received}")
             test_config = self.override_conf({
                 'rank': self.this_rank,
@@ -599,7 +627,7 @@ class Executor(object):
                                         batch_size=self.args.test_bsz, args=self.args,
                                         isVal=True, collate_fn=self.collate_fn)
             test_results = client.test(data_loader, self.model_adapter.get_model(), test_config, isVal=True)
-            self.log_validation_result(client_id, test_results)
+            self.log_validation_result(client_id, test_results, old_acc)
             
             gc.collect()
 

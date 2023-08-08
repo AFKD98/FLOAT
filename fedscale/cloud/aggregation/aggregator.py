@@ -185,7 +185,7 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
     def setup_env(self):
         """Set up experiments environment and server optimizer
         """
-        self.setup_seed(seed=1)
+        self.setup_seed(seed=7)
 
     def setup_seed(self, seed=1):
         """Set global random seed for better reproducibility

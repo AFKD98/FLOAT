@@ -12,12 +12,12 @@ import pickle
 from fedscale.cloud import commons
 
 # Set random seed for reproducibility
-random.seed(42)
-np.random.seed(42)
+random.seed(1)
+np.random.seed(2)
 
 
 class RL:
-    def __init__(self, total_clients=200, participation_rate=50, discount_factor=0, learning_rate=0.8, exploration_prob=1.0, actions=[1, 2]):
+    def __init__(self, total_clients=200, participation_rate=50, discount_factor=0, learning_rate=0.1, exploration_prob=1.0, actions=[1, 2]):
         self.total_clients = total_clients
         self.participation_rate = participation_rate
         self.learning_rate = learning_rate
@@ -34,13 +34,36 @@ class RL:
         self.max_q_table_size = 10000
         self.overhead_times = defaultdict(float)  # Track overhead times
 
+    def choose_random_action_uniformly(self, state_key):
+        
+        #select an action if it has previously not been selected
+        random_action = np.random.choice(self.actions)
+        unexplored_actions = [action for action in self.actions if action not in self.Q.get(state_key, {})]
+        # logging.info(f'unexplored_actions: {unexplored_actions}')
+        if len(unexplored_actions) > 0:
+            random_action = np.random.choice(unexplored_actions)
+            return random_action
+        #choose the least count action if count for this action is greater than 5
+        elif self.Q.get(state_key):
+            actions_for_state = self.Q.get(state_key)
+        
+            if random_action in actions_for_state:
+                # logging.info(f'actions dict: {actions_for_state.items()}')
+                sorted_actions_for_state = sorted(actions_for_state.items(), key=lambda x: int(x[1]['count']))
+                # logging.info(f'sorted_actions_for_state: {sorted_actions_for_state}')
+                random_action = sorted_actions_for_state[0][0]
+        else:
+            random_action = np.random.choice(self.actions)
+        return random_action
+    
     def choose_action_per_client(self, global_state, local_state, selected_client):
         try:
             prob = np.random.rand()
             logging.info("prob: {}".format(prob))
             state_key = tuple(global_state.items()), tuple(local_state.items())  # Convert dictionaries to tuples
             if prob < self.exploration_prob:
-                action = np.random.choice(self.actions)
+                # action = np.random.choice(self.actions)
+                action = self.choose_random_action_uniformly(state_key)
                 logging.info("Exploration: client {} chooses action {}".format(selected_client, action))
             else:
                 start_time = time.time()
@@ -71,12 +94,14 @@ class RL:
                             max_combined_score = combined_score
                             action = key
                     if action is None:
-                        action = np.random.choice(self.actions)
+                        # action = np.random.choice(self.actions)
+                        action = self.choose_random_action_uniformly(state_key)
                     logging.info("Exploitation: client {} chooses action {}".format(selected_client, action))
                 
                 else:
                     print("State is still unexplored, Cannot exploit!")
-                    action = np.random.choice(self.actions)
+                    # action = np.random.choice(self.actions)
+                    action = self.choose_random_action_uniformly(state_key)
                 
                 end_time = time.time()
                 overhead_time = end_time - start_time
@@ -85,10 +110,11 @@ class RL:
         except Exception as e:
             logging.error(f"Error in choose_action_per_client {e}")
             action = np.random.choice(self.actions)
+            # action = self.choose_random_action_uniformly(state_key)
         return action
 
     
-    def update_Q_per_client(self, selected_client, global_state, local_state, action, new_global_state, new_local_state, rewards):
+    def update_Q_per_client(self, selected_client, global_state, local_state, action, new_global_state, new_local_state, rewards, round=None):
         try:
             start_time = time.time()
             # client_Q = self.Q[selected_client]
@@ -122,14 +148,17 @@ class RL:
             #         item['accuracy'] = 0
             #     else:
             #         item['accuracy'] /= max_accuracy
-                
+            learning_rate = max(self.learning_rate*round/50, 1.0)
             # Update Q-values separately for each objective
             for objective, reward in rewards.items():
                 # updated_Q = Q_current[objective] + self.learning_rate * (reward + self.discount_factor * Q_future[objective] - Q_current[objective])
                 # self.Q[state_key][action][objective] = updated_Q
                 # logging.info('Faraz - debug BEFORE update Q and reward: {}, {}'.format(self.Q[state_key][action][objective], reward))
                 # Q_current[objective]+= self.learning_rate * (reward + self.discount_factor * Q_future[objective] - Q_current[objective])
-                Q_current[objective]+= reward
+                if round and objective=='accuracy':
+                    Q_current[objective]+= learning_rate * reward
+                else:
+                    Q_current[objective]+= self.learning_rate * reward
                 # logging.info('Faraz - debug AFTER update Q and reward: {}, {}'.format(self.Q[state_key][action][objective], reward))
 
             # self.limit_q_table_size(client_Q)

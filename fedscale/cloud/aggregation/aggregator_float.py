@@ -125,7 +125,7 @@ class FLOATAggregator(Aggregator):
                     new_local_state = update['new_local_state']
                     reward = update['reward']
                     reward['accuracy'] = np.mean(reward['accuracy'])
-                    self.rl_agent.update_Q_per_client(client_id, global_state, local_state, optimization, new_global_state, new_local_state, reward)
+                    self.rl_agent.update_Q_per_client(client_id, global_state, local_state, optimization, new_global_state, new_local_state, reward, self.round)
                     self.rl_agent.save_Q('/home/ahmad/FedScale/benchmark/logs/rl_model')
                     # logging.info(f'Updated RL Q table: {self.rl_agent.Q}')
                 else:
