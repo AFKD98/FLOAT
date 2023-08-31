@@ -67,10 +67,11 @@ class ClientManager:
         for resource in resources_to_categorize:
             if resource == 'computation':
                 resource_var = compute
-                q1, q2, q3, q4 = np.percentile(compute_values, [10, 20, 30, 40])
+                q1, q2, q3, q4 = np.percentile(compute_values, [20,40,60,80])
             else:
                 resource_var = bandwidth
-                q1, q2, q3, q4 = np.percentile(communication_values, [10, 20, 30, 40])
+                q1, q2, q3, q4 = np.percentile(communication_values, [20,40,60,80])
+            logging.info('Faraz - resource: {}, q1: {}, q2: {}, q3: {}, q4: {} from max and min: {}, {}'.format(resource, q1, q2, q3, q4, min(compute_values), max(compute_values)))
             #see which bucket the compute value falls into from all percentiles
             if resource_var < q1:
                 translated_local_state[resource] = '1'

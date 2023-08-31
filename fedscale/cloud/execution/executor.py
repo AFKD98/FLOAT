@@ -88,7 +88,7 @@ class Executor(object):
         """Set up experiments environment
         """
         logging.info(f"(EXECUTOR:{self.this_rank}) is setting up environ ...")
-        self.setup_seed(seed=6)
+        self.setup_seed(seed=0)
 
     def setup_communication(self):
         """Set up grpc connection
@@ -262,12 +262,14 @@ class Executor(object):
             total_size = 0
             # logging.info('HERE53')
             for weight in model:
+                # logging.info(f'Faraz debug - weight: {weight}')
                 # logging.info('HERE54')
                 compressed_weight, size = self.q_compressor.compress(weight, n_bit = q_bit)
                 # logging.info('HERE55')
                 total_size += int(size)
                 # logging.info('HERE56')
                 compressed_weights.append(compressed_weight)
+                # logging.info(f'Faraz debug - compressed_weight: {compressed_weight}')
                 # logging.info('HERE57')
                 
             return compressed_weights, total_size
@@ -277,7 +279,7 @@ class Executor(object):
     
     def prune_model(self, pruned_model, client_data, prune_percentage=0.25):
         try:
-            pruned_model, reduction_ratio = self.pruning.prune_model(pruned_model, 0.45, client_data)
+            pruned_model, reduction_ratio = self.pruning.prune_model(pruned_model, prune_percentage, client_data)
             return pruned_model, reduction_ratio
         
         except Exception as e:
@@ -370,7 +372,7 @@ class Executor(object):
             if old_acc:
                 self.old_client_losses[client_id] = test_loss
                 self.old_client_accuracies[client_id] = acc
-                # logging.info(f"Client {client_id} - Old Validation Accuracy: {acc}")
+                logging.info(f"Client {client_id} - Old Validation Accuracy: {self.old_client_accuracies}")
             else:
                 self.client_accuracies[client_id] = acc
                 self.client_losses[client_id] = test_loss
@@ -402,7 +404,7 @@ class Executor(object):
             logging.info(f"Validation accuracies: {self.client_accuracies}")
             logging.info(f"Validation losses: {self.client_losses}")
             #Faraz - calculate the average accuracy, top 10% accuracy and bottom 10% accuracy
-            if len(self.client_accuracies) > 9:
+            if len(self.client_accuracies) > 9 and event == commons.CLIENT_VALIDATE_ALL:
                 #calculate the average accuracy
                 avg_acc = sum(self.client_accuracies.values()) / len(self.client_accuracies)
                 #calculate top 10% accuracy
@@ -414,11 +416,14 @@ class Executor(object):
             
             #get the difference between the old and new accuracies
             diff = {}
-            # logging.info(f"Old validation accuracies: {self.old_client_accuracies}")
+            logging.info(f"Old validation accuracies: {self.old_client_accuracies}")
+            logging.info(f"New validation accuracies: {self.client_accuracies}")
             for client_id in self.client_accuracies:
-                if self.old_client_accuracies.get(client_id):
+                if client_id in self.old_client_accuracies:
                     diff[client_id] = self.client_accuracies[client_id] - self.old_client_accuracies[client_id]
                     # self.old_client_accuracies.remove(client_id)
+                    # logging.info(f'Faraz -debug removed client {client_id} from old_client_accuracies')
+                    # self.old_client_accuracies.pop(client_id)
                 else:
                     logging.info(f"Old accuracy not found for client {client_id}")
                     diff[client_id] = self.client_accuracies[client_id]
@@ -536,8 +541,8 @@ class Executor(object):
             local_steps = None
             logging.info(f"Faraz - debug optimizaiton {optimization} in client {client_id}")
             if optimization and 'partial' in optimization:
-                local_steps_reduction= int(optimization.split('_')[1])
-                local_steps = int(local_steps_reduction*0.01*self.args.local_steps)
+                local_steps_reduction= 1.0 - int(optimization.split('_')[1])*0.01
+                local_steps = int(local_steps_reduction*self.args.local_steps)
             if optimization and 'quantization' in optimization:
                 q_bits = int(optimization.split('_')[1])
                 # logging.info(f"Faraz - debug Before Training client {client_id} with model {model}")
@@ -563,7 +568,7 @@ class Executor(object):
             # logging.info(f'HERE46 for client {client_id}')
             #Faraz - Handle pruning here after train_data is loaded
             if optimization and 'pruning' in optimization:
-                prune_percentage = float(optimization.split('_')[1])
+                prune_percentage = float(optimization.split('_')[1])*0.01
                 self.model_adapter.set_weights(model)
                 pruned_model, reduction_ratio = self.prune_model(self.model_adapter.get_model(), client_data, prune_percentage)
                 # Get the weights as a list of torch tensors
@@ -585,7 +590,9 @@ class Executor(object):
             # if optimization != None:
             # logging.info(f'HERE48 for client {client_id}')
             try:
-                test_res = self.validation_handler(client_id, True)
+                if optimization != None:
+                    logging.info(f'Faraz - debug Validating client {client_id}')
+                    test_res = self.validation_handler(client_id, True)
                 train_res = client.train(
                     client_data=client_data, model=self.model_adapter.get_model(), conf=conf, local_steps=local_steps)
             except Exception as e:
@@ -593,7 +600,7 @@ class Executor(object):
                 return None
             # if optimization != None:
             # logging.info(f'HERE49 for client {client_id}')
-            if optimization != None and 'quantization' in optimization:
+            if optimization and 'quantization' in optimization:
                 train_res['update_weight'], size = self.compress_model(train_res['update_weight'], q_bit=q_bits)
                 train_res['optimization'] = optimization
                 # logging.info('Compressed model: {}'.format(train_res['update_weight']))
@@ -623,9 +630,12 @@ class Executor(object):
                 'tokenizer': tokenizer
             })
             client = self.get_client_trainer(test_config)
+            # logging.info(f"Faraz - debug validation_handler 626 {self.validation_sets}")
             data_loader = select_dataset(client_id, self.validation_sets,
                                         batch_size=self.args.test_bsz, args=self.args,
                                         isVal=True, collate_fn=self.collate_fn)
+            # logging.info(f"Faraz - debug validation_handler 630 {data_loader}")
+            # logging.info(f"Faraz - debug validation_handler 632 {data_loader.dataset}")
             test_results = client.test(data_loader, self.model_adapter.get_model(), test_config, isVal=True)
             self.log_validation_result(client_id, test_results, old_acc)
             

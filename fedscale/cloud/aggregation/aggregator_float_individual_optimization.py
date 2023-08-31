@@ -115,10 +115,7 @@ class FLOATAggregator(Aggregator):
     def update_RL_agent(self):
         '''Update the RL agent with the current client's information.'''
         try:
-
-            #Faraz - sum of rewards
-            # logging.info('sum of rewards: {}'.format(sum(self.rl_agent.selected_actions_rewards.values())))
-            exploited_client_ids = list(self.rl_agent.selected_actions_rewards.keys())
+            logging.info('Updating RL agent')
             for client_id, update in self.past_rl_updates.items():
                 if 'global_state' in update:
                     global_state = update['global_state']
@@ -130,15 +127,10 @@ class FLOATAggregator(Aggregator):
                     reward['accuracy'] = np.mean(reward['accuracy'])
                     self.rl_agent.update_Q_per_client(client_id, global_state, local_state, optimization, new_global_state, new_local_state, reward, self.round)
                     self.rl_agent.save_Q('/home/ahmad/FedScale/benchmark/logs/rl_model')
-                    #remove from rl_updates
-                    if client_id in exploited_client_ids:
-                        self.rl_agent.selected_actions_rewards.pop(client_id)
                     # logging.info(f'Updated RL Q table: {self.rl_agent.Q}')
                 else:
                     logging.info('No update for RL agent')
             # logging.info('update_RL_agent: rl_updates: {}'.format(self.rl_updates))
-            logging.info('Faraz - Rewards in round {}: {}'.format(self.round, self.rl_agent.rewards_per_round))
-            logging.info(f'Sum of rewards in round {self.round}: {sum(self.rl_agent.rewards_per_round)}')
             
             # self.rl_agent.print_overhead_times()
         except Exception as e:
@@ -173,19 +165,19 @@ class FLOATAggregator(Aggregator):
                 # pruned_model, reduction_ratio = self.prune_model(prune_percentage)
                 #Faraz - debug - temporarily using prune percentage as reduction ratio
                 reduction_ratio = 1.0-prune_percentage
-                roundDuration = exe_cost['computation']*reduction_ratio + exe_cost['communication']*reduction_ratio
+                roundDuration = exe_cost['computation']*reduction_ratio + exe_cost['communication']
             elif 'partial' in optimization:
-                partial_training_percentage = 1.0 - int(optimization.split('_')[1])*0.01
+                partial_training_percentage = int(optimization.split('_')[1])*0.01
                 # pruned_model, reduction_ratio = self.prune_model(partial_training_percentage)
                 #Faraz - debug - temporarily using prune percentage as reduction ratio
-                new_local_steps = int((partial_training_percentage)*self.args.local_steps)
-                # logging.info(f'Faraz - debug old vs new local steps and partial_training_percentage: {self.args.local_steps}, {new_local_steps}, {partial_training_percentage}')
+                new_local_steps = int((1.0-partial_training_percentage*0.01)*self.args.local_steps)
                 roundDuration = (exe_cost['computation']//self.args.local_steps)*new_local_steps + exe_cost['communication']
                 
 
+            isactivewithouttraining, olddeadline_differencewithouttraining = self.client_manager.isClientActivewithDeadline(client_to_run, self.global_virtual_clock)
             isactive, olddeadline_difference = self.client_manager.isClientActivewithDeadline(client_to_run, oldroundDuration + self.global_virtual_clock)
             client_active, deadline_difference = self.client_manager.isClientActivewithDeadline(client_to_run, roundDuration + self.global_virtual_clock)
-            logging.info(f"Faraz - Client {client_to_run} is active: {client_active}, deadline difference: {deadline_difference}, old deadline difference: {olddeadline_difference}, round duration difference: {abs(oldroundDuration - roundDuration)}")
+            logging.info(f"Faraz - Client {client_to_run} is active: {client_active}, deadline difference: {deadline_difference}, old deadline difference: {olddeadline_difference}, old deadline difference without training: {olddeadline_differencewithouttraining}, round duration difference: {oldroundDuration - roundDuration}")
             if client_active:
                 logging.info('Faraz - Successfully scheduled client {} for round {} with optimization {} and round duration reduction of {}%'.format(client_to_run, self.round, optimization, oldroundDuration - roundDuration))
                 
@@ -201,7 +193,7 @@ class FLOATAggregator(Aggregator):
                     return True, roundDuration, None, exe_cost
                 
             else:
-                logging.info('Faraz - Failed to schedule client {} for round {} with optimization {} and round duration reduction of {}%'.format(client_to_run, self.round, optimization, abs(oldroundDuration - roundDuration)))
+                logging.info('Faraz - Failed to schedule client {} for round {} with optimization {} and round duration reduction of {}%'.format(client_to_run, self.round, optimization, oldroundDuration - roundDuration))
                 # self.rl_agent.update_Q_per_client(client_to_run, self.global_state, client_local_state, optimization, self.global_state, client_local_state, -1)
                 self.rl_updates[client_to_run] =  {'client_to_run': client_to_run, 'global_state': self.global_state, 'local_state': client_local_state, 'optimization': optimization, 'new_global_state': self.global_state, 'new_local_state': client_local_state, 'reward': {'participation_success': -1.0, 'accuracy': []}}
                 logging.info('rl_updates: {}'.format(self.rl_updates))
@@ -265,9 +257,6 @@ class FLOATAggregator(Aggregator):
                     action = None
                     if not client_active:
                         action = self.get_optimization(client_to_run)
-                        #Faraz - for choosing static action
-                        #Faraz - for testing individual optimization
-                        # action = 'quantization_16'
                         client_active, newRoundDuration, compressed_weights, new_exe_cost = self.perform_optimization(client_cfg, client_to_run, action, roundDuration, exe_cost)
                     # logging.info('tictak clients: self.rl_updates: {}'.format(self.rl_updates))
                     # if the client is not active by the time of collection, we consider it is lost in this round
@@ -288,7 +277,7 @@ class FLOATAggregator(Aggregator):
                     else:
                         clients_left_out.append(client_to_run)
                         sampledClientsReal.append(client_to_run)
-                        self.optimizations[client_to_run] = {'optimization': action, 'model_weights': compressed_weights if compressed_weights else self.model_wrapper.get_weights()}
+                        # self.optimizations[client_to_run] = {'optimization': action, 'model_weights': compressed_weights if compressed_weights else self.model_wrapper.get_weights()}
                         completionTimes.append(roundDuration)
                         completed_client_clock[client_to_run] = exe_cost
                         client_completion_times[client_to_run] = roundDuration
@@ -390,8 +379,7 @@ class FLOATAggregator(Aggregator):
             if results.get('optimization'):
                 # logging.info(f'type of update_weights: {type(update_weights)}')
                 # logging.info(f'update_weights: {(update_weights)}')
-                n_bit = int(results['optimization'].split('_')[1])
-                update_weights = self.decompress_model(update_weights, n_bit)
+                update_weights = self.decompress_model(update_weights)
                 # logging.info(f'decompressed update_weights: {(update_weights)}')
             if type(update_weights) is dict:
                 update_weights = [x for x in update_weights.values()]
@@ -527,7 +515,6 @@ class FLOATAggregator(Aggregator):
                     self.broadcast_aggregator_events(commons.MODEL_TEST)
                     # self.rl_agent.save_Q('rl_agent')
                     if self.round % 50 == 0:
-                        logging.info('Faraz - debug Sending validate all request')
                         self.broadcast_aggregator_events(commons.CLIENT_VALIDATE_ALL)
                 else:
                     

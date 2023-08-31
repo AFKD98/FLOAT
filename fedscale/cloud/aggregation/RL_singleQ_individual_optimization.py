@@ -12,22 +12,18 @@ import pickle
 from fedscale.cloud import commons
 import math
 # Set random seed for reproducibility
-random.seed(0)
-np.random.seed(0)
+random.seed(27)
+np.random.seed(29)
 
 
 class RL:
-    def __init__(self, total_clients=200, participation_rate=50, discount_factor=0, learning_rate=1.0, exploration_prob=0.5, actions=[1, 2]):
+    def __init__(self, total_clients=200, participation_rate=50, discount_factor=0, learning_rate=1.0, exploration_prob=1.0, actions=[1, 2]):
         self.total_clients = total_clients
         self.participation_rate = participation_rate
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
         self.exploration_prob = exploration_prob
         self.actions = commons.ACTIONS
-        self.w_p = 0.5
-        self.w_a = 0.5
-        self.rewards_per_round = []
-        self.selected_actions_rewards = {}
         path = '/home/ahmad/FedScale/benchmark/logs/rl_model/Q.pkl'
         if os.path.exists(path):
             self.get_Q_from_path(path)
@@ -58,8 +54,10 @@ class RL:
             random_action = np.random.choice(self.actions)
         return random_action
     
-    def choose_action_per_client(self, global_state, local_state, selected_client):
+    def choose_action_per_client(self, global_state, local_state, selected_client, constant=True):
         try:
+            if constant:
+                return 'pruning_75'
             prob = np.random.rand()
             logging.info("prob: {}".format(prob))
             state_key = tuple(global_state.items()), tuple(local_state.items())  # Convert dictionaries to tuples
@@ -74,7 +72,7 @@ class RL:
                 if q_values:
                     # Separate rewards for each objective
                     action_rewards = {action: q_values[action] for action in q_values}
-                    logging.info("action q values: {}".format(action_rewards))
+                    logging.info("action_rewards: {}".format(action_rewards))
                     # Choose action based on the rewards for each objective
                     # action = max(objective_rewards, key=objective_rewards.get)
                     # Calculate the combined score for each entry
@@ -84,23 +82,20 @@ class RL:
                     # Iterate through the data to find the key with the maximum combined score
                     average_acc = sum([value['accuracy'] for key, value in action_rewards.items()]) / len(action_rewards)
                     if average_acc < 0.5:
-                        self.w_p = 0.7
-                        self.w_a = 0.3
+                        w_p = 0.7
+                        w_a = 0.3
                     else:
-                        self.w_p = 0.3
-                        self.w_a = 0.7
+                        w_p = 0.3
+                        w_a = 0.7
 
                     for key, value in action_rewards.items():
-                        combined_score = self.w_p*value['participation_success'] + (self.w_a*value['accuracy'])/value['count']
+                        combined_score = w_p*value['participation_success'] + (w_a*value['accuracy'])/value['count']
                         if combined_score > max_combined_score:
                             max_combined_score = combined_score
                             action = key
                     if action is None:
                         # action = np.random.choice(self.actions)
-                        logging.info("State is still unexplored, Cannot exploit!")
                         action = self.choose_random_action_uniformly(state_key)
-                    self.selected_actions_rewards[selected_client] = 0
-                    # logging.info('choose - self.selected_actions_rewards: {}'.format(self.selected_actions_rewards))
                     logging.info("Exploitation: client {} chooses action {}".format(selected_client, action))
                 
                 else:
@@ -121,6 +116,7 @@ class RL:
     
     def update_Q_per_client(self, selected_client, global_state, local_state, action, new_global_state, new_local_state, rewards, round=None):
         try:
+            return
             start_time = time.time()
             # client_Q = self.Q[selected_client]
             state_key = tuple(global_state.items()), tuple(local_state.items())  # Convert dictionaries to tuples
@@ -140,12 +136,7 @@ class RL:
             Q_current = self.Q[state_key][action]
             Q_current['count'] += 1
             Q_future = max(self.Q[new_state_key].values(), key=lambda item: (item['participation_success'], item['accuracy']))
-            if selected_client in list(self.selected_actions_rewards.keys()):
-                self.selected_actions_rewards[selected_client] += self.w_p*rewards['participation_success'] + (self.w_a*rewards['accuracy'][0] if isinstance(rewards['accuracy'], list) else rewards['accuracy'])
-                calculated_reward = self.w_p*rewards['participation_success'] + (self.w_a*rewards['accuracy'])
-                self.rewards_per_round.append(calculated_reward)
-                # logging.info(f'participation_success: {rewards["participation_success"]}, accuracy: {rewards["accuracy"]}')
-                # logging.info('update - rewards: {}'.format(calculated_reward))
+
             # Normalize Q_future values for 'participation_success' and 'accuracy'
             # max_participation_success = max(item['participation_success'] for item in self.Q[state_key].values())
             # max_accuracy = max(item['accuracy'] for item in self.Q[state_key].values())
@@ -169,7 +160,6 @@ class RL:
                 if round and objective=='accuracy':
                     #check if Q_current[objective] == nan
                     Q_current[objective]+= learning_rate * reward
-                    logging.info('AFTER - objective: {}, value: {}'.format(objective, Q_current[objective]))
                 else:
                     Q_current[objective]+= self.learning_rate * reward
                 # logging.info('AFTER - objective: {}, value: {}'.format(objective, Q_current[objective]))
@@ -199,7 +189,7 @@ class RL:
 
     def save_Q(self, path):
         try:
-            # return
+            return
             path = os.path.join(path, 'Q.pkl')
             logging.info("Saving Q to {}".format(path))
             with open(path, 'wb') as f:

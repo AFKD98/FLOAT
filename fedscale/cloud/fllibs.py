@@ -192,6 +192,7 @@ def init_model():
     elif parser.args.task == 'rl':
         model = DQN(parser.args).target_net
     else:
+        # logging.info('HERE1')
         if parser.args.model == "lr":
             from fedscale.utils.models.simple.models import LogisticRegression
             model = LogisticRegression(
@@ -203,15 +204,19 @@ def init_model():
             assert parser.args.engine == commons.TENSORFLOW
             model = get_tensorflow_model(parser.args.model, parser.args)
         else:
+            # logging.info('HERE2')
             if parser.args.model_zoo == "fedscale-torch-zoo":
                 if parser.args.task == "cv":
+                    # logging.info("Using TorchCV model zoo")
                     model = get_cv_model(name=parser.args.model,
                                          num_classes=outputClass[parser.args.data_set])
                 else:
                     raise NameError(f"Model zoo {parser.args.model_zoo} does not exist")
             elif parser.args.model_zoo == "torchcv":
+                # logging.info("Using TorchCV model")
                 model = tormodels.__dict__[parser.args.model](
                     num_classes=outputClass[parser.args.data_set])
+                # logging.info(f'Faraz - debug model layers: {model}')
             else:
                 raise NameError(f"Model zoo {parser.args.model_zoo} does not exist")
     return model

@@ -1,6 +1,9 @@
 import numpy as np
 import random
 import logging
+from fedscale.dataloaders.divide_data import DataPartitioner
+import os
+import pickle
 
 class ClientMetadata:
     """
@@ -18,6 +21,12 @@ class ClientMetadata:
         random.seed(client_id)
         self.host_id = host_id
         self.client_id = client_id
+        
+        #Faraz - get samples per client from saved partitions
+        filename = '/home/ahmad/FedScale/benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha0.05'
+        partitions = pickle.load(open(filename, 'rb'))
+        # logging.info(f'partitions: {partitions}')
+        self.samples_per_client = len(partitions[client_id-1])
         self.compute_speed = speed['computation']
         self.compute_speed_with_inference = speed['computation']
         self.bandwidth = speed['communication']
@@ -155,7 +164,7 @@ class ClientMetadata:
         return self.bandwidth
     
     
-    def get_completion_time_with_variable_network(self, batch_size, local_steps, upload_size, download_size, augmentation_factor=3.0, add_cpu_noise=True):
+    def get_completion_time_with_variable_network(self, batch_size, local_steps, upload_size, download_size, augmentation_factor=3.0, add_cpu_noise=True, add_network_noise=True):
         """
            Computation latency: compute_speed is the inference latency of models (ms/sample). As reproted in many papers,
                                 backward-pass takes around 2x the latency, so we multiple it by 3x;
@@ -164,12 +173,19 @@ class ClientMetadata:
         try:
             self.bandwidth = self.get_new_network_bandwidth()
             if add_cpu_noise:
-                self.compute_speed_with_inference = np.random.uniform(0.1*self.compute_speed, self.compute_speed)
+                self.compute_speed_with_inference = np.random.uniform(0.1*self.compute_speed, 0.4*self.compute_speed)
+                #high_network_low_cpu
+                # self.compute_speed_with_inference = self.compute_speed
+            if add_network_noise:
+                self.bandwidth = np.random.uniform(0.6*self.bandwidth, 1.0*self.bandwidth)
             if self.bandwidth == 0 or self.compute_speed_with_inference == 0:
-                self.completion_time = {'computation': 10000000, 'communication': 10000000}
+                self.completion_time = {'computation': 10000, 'communication': 10000}
                 return self.completion_time
             
-            self.completion_time = {'computation': augmentation_factor * batch_size * local_steps*float(self.compute_speed_with_inference)/1000.,
+            # logging.info(f'Faraz - debug augmentation_factor: {augmentation_factor}, batch_size: {self.samples_per_client}, local_steps: {local_steps}, compute_speed_with_inference: {self.compute_speed_with_inference/1000}, bandwidth: {self.bandwidth}')
+            # self.completion_time = {'computation': augmentation_factor * batch_size * local_steps*float(self.compute_speed_with_inference)/1000.,
+            #         'communication': (upload_size+download_size)/float(self.bandwidth)}
+            self.completion_time = {'computation': augmentation_factor * self.samples_per_client * local_steps*float(self.compute_speed_with_inference)/1000.,
                     'communication': (upload_size+download_size)/float(self.bandwidth)}
             
             return self.completion_time

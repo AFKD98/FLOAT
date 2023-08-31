@@ -74,6 +74,9 @@ class DataPartitioner(object):
 
     def getDataLen(self):
         return self.data_len
+    
+    def get_number_samples_per_client(self, client_id):
+        return len(self.partitions[client_id])
 
     def getClientLen(self):
         return len(self.partitions)
@@ -206,8 +209,8 @@ class DataPartitioner(object):
                     + str(num_class) + '_samples' + str(self.usedSamples) + '_alpha' + str(self.args.dirichlet_alpha)
             if self.args.partitioning == 4 and '_alpha' not in filename:
                 filename += '_alpha{}'.format(self.args.dirichlet_alpha)
-            logging.info('log path: ' + self.args.log_path)
             folder = os.path.join(self.args.data_dir, 'metadata', self.args.data_set, 'data_mappings')
+            logging.info('data path: {}'.format(folder))
             if not os.path.isdir(folder):
                 os.makedirs(folder, exist_ok=True)
             custom_mapping_file = os.path.join(folder, filename)
@@ -355,18 +358,22 @@ class DataPartitioner(object):
         logging.info("=====================================\n")
         
     def use(self, partition, istest, isVal):
-        resultIndex = self.partitions[partition % len(self.partitions)]
+        try:
+            resultIndex = self.partitions[partition % len(self.partitions)]
+            exeuteLength = int(len(resultIndex) * (1 - self.args.val_ratio)) if not istest else int(
+                len(resultIndex) * self.args.test_ratio)
+            resultIndex = resultIndex[:exeuteLength]
+            if isVal:
+                exeuteLength = int(len(resultIndex) * self.args.val_ratio)
+                resultIndex = resultIndex[-exeuteLength:]
+                # logging.info("Faraz (data) - Partition: {} with {} samples executeLength {} and isTest {} and isVal {}".format(partition, len(resultIndex), exeuteLength, istest, isVal))
+            self.rng.shuffle(resultIndex)
+            # logging.info("Faraz (data) - Partition: {} with {} samples and isTest {}".format(partition, len(resultIndex), istest))
 
-        exeuteLength = int(len(resultIndex) * (1 - self.args.val_ratio)) if not istest else int(
-            len(resultIndex) * self.args.test_ratio)
-        resultIndex = resultIndex[:exeuteLength]
-        if isVal:
-            exeuteLength = int(len(resultIndex) * self.args.val_ratio)
-            resultIndex = resultIndex[-exeuteLength:]
-        self.rng.shuffle(resultIndex)
-        # logging.info("Faraz (data) - Partition: {} with {} samples and isTest {}".format(partition, len(resultIndex), istest))
-
-        return Partition(self.data, resultIndex)
+            return Partition(self.data, resultIndex)
+        except Exception as e:
+            logging.error(f'Exception in use: {e}')
+            return None
 
     def getSize(self):
         # return the size of samples
@@ -375,17 +382,22 @@ class DataPartitioner(object):
 
 def select_dataset(rank, partition, batch_size, args, isTest=False, isVal=False, collate_fn=None):
     """Load data given client Id"""
-    partition = partition.use(rank - 1, isTest, isVal)
-    dropLast = False if isTest else True
-    if isTest:
-        num_loaders = 0
-    else:
-        num_loaders = min(int(len(partition)/args.batch_size/2), args.num_loaders)
-    if num_loaders == 0:
-        time_out = 0
-    else:
-        time_out = 60
+    try:
+        
+        partition = partition.use(rank - 1, isTest, isVal)
+        dropLast = False if isTest else True
+        if isTest:
+            num_loaders = 0
+        else:
+            num_loaders = min(int(len(partition)/args.batch_size/2), args.num_loaders)
+        if num_loaders == 0:
+            time_out = 0
+        else:
+            time_out = 60
 
-    if collate_fn is not None:
-        return DataLoader(partition, batch_size=batch_size, shuffle=True, pin_memory=True, timeout=time_out, num_workers=num_loaders, drop_last=dropLast, collate_fn=collate_fn)
-    return DataLoader(partition, batch_size=batch_size, shuffle=True, pin_memory=True, timeout=time_out, num_workers=num_loaders, drop_last=dropLast)
+        if collate_fn is not None:
+            return DataLoader(partition, batch_size=batch_size, shuffle=True, pin_memory=True, timeout=time_out, num_workers=num_loaders, drop_last=dropLast, collate_fn=collate_fn)
+        return DataLoader(partition, batch_size=batch_size, shuffle=True, pin_memory=True, timeout=time_out, num_workers=num_loaders, drop_last=dropLast)
+    except Exception as e:
+        logging.error(f'Exception in select_dataset: {e}')
+        return None

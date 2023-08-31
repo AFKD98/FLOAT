@@ -118,7 +118,7 @@ class FLOATAggregator(Aggregator):
 
             #Faraz - sum of rewards
             # logging.info('sum of rewards: {}'.format(sum(self.rl_agent.selected_actions_rewards.values())))
-            exploited_client_ids = list(self.rl_agent.selected_actions_rewards.keys())
+            # exploited_client_ids = list(self.rl_agent.selected_actions_rewards.keys())
             for client_id, update in self.past_rl_updates.items():
                 if 'global_state' in update:
                     global_state = update['global_state']
@@ -131,14 +131,14 @@ class FLOATAggregator(Aggregator):
                     self.rl_agent.update_Q_per_client(client_id, global_state, local_state, optimization, new_global_state, new_local_state, reward, self.round)
                     self.rl_agent.save_Q('/home/ahmad/FedScale/benchmark/logs/rl_model')
                     #remove from rl_updates
-                    if client_id in exploited_client_ids:
-                        self.rl_agent.selected_actions_rewards.pop(client_id)
+                    # if client_id in exploited_client_ids:
+                    #     self.rl_agent.selected_actions_rewards.pop(client_id)
                     # logging.info(f'Updated RL Q table: {self.rl_agent.Q}')
                 else:
                     logging.info('No update for RL agent')
             # logging.info('update_RL_agent: rl_updates: {}'.format(self.rl_updates))
-            logging.info('Faraz - Rewards in round {}: {}'.format(self.round, self.rl_agent.rewards_per_round))
-            logging.info(f'Sum of rewards in round {self.round}: {sum(self.rl_agent.rewards_per_round)}')
+            # logging.info('Faraz - Rewards in round {}: {}'.format(self.round, self.rl_agent.rewards_per_round))
+            # logging.info(f'Sum of rewards in round {self.round}: {sum(self.rl_agent.rewards_per_round)}')
             
             # self.rl_agent.print_overhead_times()
         except Exception as e:
@@ -267,7 +267,7 @@ class FLOATAggregator(Aggregator):
                         action = self.get_optimization(client_to_run)
                         #Faraz - for choosing static action
                         #Faraz - for testing individual optimization
-                        # action = 'quantization_16'
+                        # action = 'pruning_75'
                         client_active, newRoundDuration, compressed_weights, new_exe_cost = self.perform_optimization(client_cfg, client_to_run, action, roundDuration, exe_cost)
                     # logging.info('tictak clients: self.rl_updates: {}'.format(self.rl_updates))
                     # if the client is not active by the time of collection, we consider it is lost in this round
@@ -390,8 +390,7 @@ class FLOATAggregator(Aggregator):
             if results.get('optimization'):
                 # logging.info(f'type of update_weights: {type(update_weights)}')
                 # logging.info(f'update_weights: {(update_weights)}')
-                n_bit = int(results['optimization'].split('_')[1])
-                update_weights = self.decompress_model(update_weights, n_bit)
+                update_weights = self.decompress_model(update_weights)
                 # logging.info(f'decompressed update_weights: {(update_weights)}')
             if type(update_weights) is dict:
                 update_weights = [x for x in update_weights.values()]

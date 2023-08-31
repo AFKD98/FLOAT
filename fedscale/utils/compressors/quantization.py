@@ -39,7 +39,7 @@ class QSGDCompressor(Compressor):
         self.bit = None
 
 
-    def compress(self, tensor, n_bit=8, packing=False):
+    def compress(self, tensor, n_bit=16, packing=False):
         """Compress a tensor with quantization
         Args:
             tensor ([type]): [description]
@@ -63,9 +63,13 @@ class QSGDCompressor(Compressor):
             vec = tensor.view(-1)
             # norm = torch.norm(vec, dim=1, keepdim=True)
             norm = torch.max(torch.abs(vec), dim=0, keepdim=True)[0]
-            normalized_vec = vec / norm
-
+            if norm == 0:
+                normalized_vec = vec
+            else:
+                normalized_vec = vec / norm
+            # logging.info(f'norm: {norm}, normalized_vec: {normalized_vec}, vec: {vec}')
             scaled_vec = torch.abs(normalized_vec) * self.s
+            # logging.info(f'self.s: {self.s}, scaled_vec: {scaled_vec}')
             l = torch.clamp(scaled_vec, 0, self.s - 1).type(self.code_dtype)
 
             if self.random:
@@ -77,28 +81,35 @@ class QSGDCompressor(Compressor):
                 l[:] += (probabilities > r).type(self.code_dtype)
 
             signs = torch.sign(vec) > 0
+            # logging.info(f'compress - norm: {norm}, signs: {signs}, l: {l}')
             size = sys.getsizeof(pickle.dumps([norm, signs.view(shape), l.view(shape)]))
             return [norm, signs.view(shape), l.view(shape)], size
         except Exception as e:
             logging.info(f"Compress error: {e}")
 
-    def decompress(self, signature, n_bit=8, packing=False):
+    def decompress(self, signature, n_bit=16, packing=False):
         """Decompress tensor
         Args:
             signature (list): [norm, signs, quantized_intervals], returned by :func:``compress``.
         Returns:
             torch.Tensor: Raw tensor represented by signature.
         """
-        self.bit = n_bit
-        self.s = 2**self.bit
-        if packing:
-            self.code_dtype = getattr(torch, f"int{n_bit}")  # Use n_bit dtype for l
-        else:
-            self.code_dtype = torch.float32
-        [norm, signs, l] = signature
-        assert l.shape == signs.shape
-        shape = l.shape
-        scaled_vec = l.type(
-            torch.float32) * (2 * signs.type(torch.float32) - 1)
-        compressed = (scaled_vec.view((-1))) * norm / self.s
-        return compressed.view(shape)
+        try:
+            self.bit = n_bit
+            self.s = 2**self.bit
+            if packing:
+                self.code_dtype = getattr(torch, f"int{n_bit}")  # Use n_bit dtype for l
+            else:
+                self.code_dtype = torch.float32
+            [norm, signs, l] = signature
+            assert l.shape == signs.shape
+            shape = l.shape
+            scaled_vec = l.type(
+                torch.float32) * (2 * signs.type(torch.float32) - 1)
+            # logging.info(f'self.s: {self.s}, scaled_vec: {scaled_vec}')
+            compressed = (scaled_vec.view((-1))) * norm / self.s
+            # logging.info(f'decompress - norm: {norm}, signs: {signs}, l: {l}')
+            # logging.info(f'decompressed: {compressed}')
+            return compressed.view(shape)
+        except Exception as e:
+            logging.info(f"Decompress error: {e}")

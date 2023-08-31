@@ -99,7 +99,7 @@ class RL:
                         # action = np.random.choice(self.actions)
                         logging.info("State is still unexplored, Cannot exploit!")
                         action = self.choose_random_action_uniformly(state_key)
-                    self.selected_actions_rewards[selected_client] = 0
+                    # self.selected_actions_rewards[selected_client] = 0
                     # logging.info('choose - self.selected_actions_rewards: {}'.format(self.selected_actions_rewards))
                     logging.info("Exploitation: client {} chooses action {}".format(selected_client, action))
                 
@@ -140,10 +140,10 @@ class RL:
             Q_current = self.Q[state_key][action]
             Q_current['count'] += 1
             Q_future = max(self.Q[new_state_key].values(), key=lambda item: (item['participation_success'], item['accuracy']))
-            if selected_client in list(self.selected_actions_rewards.keys()):
-                self.selected_actions_rewards[selected_client] += self.w_p*rewards['participation_success'] + (self.w_a*rewards['accuracy'][0] if isinstance(rewards['accuracy'], list) else rewards['accuracy'])
-                calculated_reward = self.w_p*rewards['participation_success'] + (self.w_a*rewards['accuracy'])
-                self.rewards_per_round.append(calculated_reward)
+            # if selected_client in list(self.selected_actions_rewards.keys()):
+            #     self.selected_actions_rewards[selected_client] += self.w_p*rewards['participation_success'] + (self.w_a*rewards['accuracy'][0] if isinstance(rewards['accuracy'], list) else rewards['accuracy'])
+            #     calculated_reward = self.w_p*rewards['participation_success'] + (self.w_a*rewards['accuracy'])
+            #     self.rewards_per_round.append(calculated_reward)
                 # logging.info(f'participation_success: {rewards["participation_success"]}, accuracy: {rewards["accuracy"]}')
                 # logging.info('update - rewards: {}'.format(calculated_reward))
             # Normalize Q_future values for 'participation_success' and 'accuracy'
