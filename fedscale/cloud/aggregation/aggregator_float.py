@@ -158,13 +158,12 @@ class FLOATAggregator(Aggregator):
                 compressed_weights, size = self.compress_model(q_bit)
                 logging.info(f"Faraz - Compressed model size: {size / 1024.0 * 8}, seize before compression: {self.model_update_size}")
                 size =  size / 1024.0 * 8.  # kbits
-                exe_cost = self.client_manager.get_completion_time(
+                exe_cost = self.client_manager.get_completion_time_with_variable_network(
                             client_to_run,
                             batch_size=client_cfg.batch_size,
                             local_steps=client_cfg.local_steps,
                             upload_size=size,
-                            download_size=self.model_update_size,
-                            variable_resources = True)
+                            download_size=self.model_update_size)
                 
                 roundDuration = exe_cost['computation'] + \
                                             exe_cost['communication']
@@ -201,9 +200,12 @@ class FLOATAggregator(Aggregator):
                     return True, roundDuration, None, exe_cost
                 
             else:
+                participationSuccess = -1.0
+                if int(optimization.split('_')[1])>=75:
+                    participationSuccess = 1.0
                 logging.info('Faraz - Failed to schedule client {} for round {} with optimization {} and round duration reduction of {}%'.format(client_to_run, self.round, optimization, abs(oldroundDuration - roundDuration)))
                 # self.rl_agent.update_Q_per_client(client_to_run, self.global_state, client_local_state, optimization, self.global_state, client_local_state, -1)
-                self.rl_updates[client_to_run] =  {'client_to_run': client_to_run, 'global_state': self.global_state, 'local_state': client_local_state, 'optimization': optimization, 'new_global_state': self.global_state, 'new_local_state': client_local_state, 'reward': {'participation_success': -1.0, 'accuracy': []}}
+                self.rl_updates[client_to_run] =  {'client_to_run': client_to_run, 'global_state': self.global_state, 'local_state': client_local_state, 'optimization': optimization, 'new_global_state': self.global_state, 'new_local_state': client_local_state, 'reward': {'participation_success': participationSuccess, 'accuracy': []}}
                 logging.info('rl_updates: {}'.format(self.rl_updates))
                 self.rl_agent.print_overhead_times()
                 if 'quantization' in optimization:
@@ -267,7 +269,7 @@ class FLOATAggregator(Aggregator):
                         action = self.get_optimization(client_to_run)
                         #Faraz - for choosing static action
                         #Faraz - for testing individual optimization
-                        # action = 'quantization_16'
+                        # action = 'partial_50'
                         client_active, newRoundDuration, compressed_weights, new_exe_cost = self.perform_optimization(client_cfg, client_to_run, action, roundDuration, exe_cost)
                     # logging.info('tictak clients: self.rl_updates: {}'.format(self.rl_updates))
                     # if the client is not active by the time of collection, we consider it is lost in this round
@@ -567,6 +569,10 @@ class FLOATAggregator(Aggregator):
                     if 'reward' not in self.past_rl_updates[client_id]:
                         self.past_rl_updates[client_id]['reward'] = {}
                         self.past_rl_updates[client_id]['reward']['accuracy'] = []
+                # if accuracy > 0:
+                #     self.past_rl_updates[client_id]['reward']['accuracy'].append(1)
+                # else:
+                #     self.past_rl_updates[client_id]['reward']['accuracy'].append(-1)
                 self.past_rl_updates[client_id]['reward']['accuracy'].append(accuracy)
             #Faraz - update RL agent after every client validation
             logging.info('past_rl_updates: {} in round: {}'.format(self.past_rl_updates, self.round))

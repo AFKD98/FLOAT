@@ -183,6 +183,19 @@ class DataPartitioner(object):
             part_len = int(1./num_clients * data_len)
             self.partitions.append(indexes[0:part_len])
             indexes = indexes[part_len:]
+        #store the partitions as pickle file
+        filename = 'part' + str(self.args.partitioning) + '_clients' + str(num_clients) + '_data' + str(data_len) + '_labels'\
+                    + str(numOfLabels) + '_samples' + str(self.usedSamples)
+        folder = os.path.join(self.args.data_dir, 'metadata', self.args.data_set, 'data_mappings')
+        logging.info('data path: {}'.format(folder))
+        if not os.path.isdir(folder):
+            os.makedirs(folder, exist_ok=True)
+        custom_mapping_file = os.path.join(folder, filename)
+        if not os.path.exists(custom_mapping_file):
+            with open(custom_mapping_file, 'wb') as fout:
+                pickle.dump(self.partitions, fout)
+            logging.info(f'Storing partitioning to file {filename}')
+            
 
     def custom_partition(self, num_clients, ratio=1.0):
         try:

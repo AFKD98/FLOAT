@@ -30,7 +30,7 @@ import pandas as pd
 #Faraz - For clustering resources in clients
 from sklearn.cluster import KMeans
 #Faraz - for quantizations
-from fedscale.cloud.aggregation.RL import RL
+# from fedscale.cloud.aggregation.RL import RL
 from fedscale.cloud.aggregation.RL_singleQ import RL as RL_singleQ
 from fedscale.utils.compressors.quantization import QSGDCompressor
 # import pympler
@@ -46,117 +46,116 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
         args (dictionary): Variable arguments for fedscale runtime config. defaults to the setup in arg_parser.py
 
     """
-
     def __init__(self, args):
         # init aggregator loger
-        try:
-            print("Aggregator init")
-            logger.initiate_aggregator_setting()
+        # try:
+        print("Aggregator init")
+        logger.initiate_aggregator_setting()
 
-            logging.info(f"Job args {args}")
-            self.args = args
-            self.experiment_mode = args.experiment_mode
-            self.device = args.cuda_device if args.use_cuda else torch.device(
-                'cpu')
+        logging.info(f"Job args {args}")
+        self.args = args
+        self.experiment_mode = args.experiment_mode
+        self.device = args.cuda_device if args.use_cuda else torch.device(
+            'cpu')
 
-            # ======== env information ========
-            self.this_rank = 0
-            self.global_virtual_clock = 0.
-            self.round_duration = 0.
-            self.resource_manager = ResourceManager(self.experiment_mode)
-            self.client_manager = self.init_client_manager(args=args)
+        # ======== env information ========
+        self.this_rank = 0
+        self.global_virtual_clock = 0.
+        self.round_duration = 0.
+        self.resource_manager = ResourceManager(self.experiment_mode)
+        self.client_manager = self.init_client_manager(args=args)
 
-            # ======== model and data ========
-            self.model_wrapper = None
-            self.model_in_update = 0
-            self.update_lock = threading.Lock()
-            # all weights including bias/#_batch_tracked (e.g., state_dict)
-            self.model_weights = None
-            self.temp_model_path = os.path.join(
-                logger.logDir, 'model_'+str(args.this_rank)+".npy")
-            self.last_saved_round = 0
+        # ======== model and data ========
+        self.model_wrapper = None
+        self.model_in_update = 0
+        self.update_lock = threading.Lock()
+        # all weights including bias/#_batch_tracked (e.g., state_dict)
+        self.model_weights = None
+        self.temp_model_path = os.path.join(
+            logger.logDir, 'model_'+str(args.this_rank)+".npy")
+        self.last_saved_round = 0
 
-            # ======== channels ========
-            self.connection_timeout = self.args.connection_timeout
-            self.executors = None
-            self.grpc_server = None
+        # ======== channels ========
+        self.connection_timeout = self.args.connection_timeout
+        self.executors = None
+        self.grpc_server = None
 
-            # ======== Event Queue =======
-            self.individual_client_events = {}  # Unicast
-            self.sever_events_queue = collections.deque()
-            self.broadcast_events_queue = collections.deque()  # Broadcast
+        # ======== Event Queue =======
+        self.individual_client_events = {}  # Unicast
+        self.sever_events_queue = collections.deque()
+        self.broadcast_events_queue = collections.deque()  # Broadcast
 
-            # ======== runtime information ========
-            self.tasks_round = 0
-            self.num_of_clients = 0
+        # ======== runtime information ========
+        self.tasks_round = 0
+        self.num_of_clients = 0
 
-            # NOTE: sampled_participants = sampled_executors in deployment,
-            # because every participant is an executor. However, in simulation mode,
-            # executors is the physical machines (VMs), thus:
-            # |sampled_executors| << |sampled_participants| as an VM may run multiple participants
-            self.sampled_participants = []
-            self.sampled_executors = []
+        # NOTE: sampled_participants = sampled_executors in deployment,
+        # because every participant is an executor. However, in simulation mode,
+        # executors is the physical machines (VMs), thus:
+        # |sampled_executors| << |sampled_participants| as an VM may run multiple participants
+        self.sampled_participants = []
+        self.sampled_executors = []
 
-            self.round_stragglers = []
-            self.model_update_size = 0.
+        self.round_stragglers = []
+        self.model_update_size = 0.
 
-            self.collate_fn = None
-            self.round = 0
+        self.collate_fn = None
+        self.round = 0
 
-            self.start_run_time = time.time()
-            self.client_conf = {}
+        self.start_run_time = time.time()
+        self.client_conf = {}
 
-            self.stats_util_accumulator = []
-            self.loss_accumulator = []
-            self.client_training_results = []
+        self.stats_util_accumulator = []
+        self.loss_accumulator = []
+        self.client_training_results = []
 
-            # number of registered executors
-            self.registered_executor_info = set()
-            self.test_result_accumulator = []
-            self.testing_history = {'data_set': args.data_set, 'model': args.model, 'sample_mode': args.sample_mode,
-                                    'gradient_policy': args.gradient_policy, 'task': args.task,
-                                    'perf': collections.OrderedDict()}
-            self.log_writer = SummaryWriter(log_dir=logger.logDir)
-            #Faraz - dynamically set the per round total workers
-            self.total_worker = args.total_worker if args.total_worker > 0 else args.initial_total_worker
-            #Faraz - mode
-            self.mode = self.args.mode
-            logging.info(f"self.args.mode: {self.mode}")
-            #Faraz - add clients dropout information
-            self.clients_to_run = []
-            self.clients_dropped_out = []
-            self.dropped_clients_resource_usage = []
-            self.deadline_differences = []
-            self.deadline_differences_per_round = {}
-            self.clients_dropped_out_per_round = {}
-            self.dropped_clients_resource_usage_per_round = {}
-            self.dropped_clients_resource_durations_per_round = {}
-            #Faraz - FedBuff
-            self.client_results_buffer = collections.deque()
-            self.buffer_size = self.args.buffer_size or 10
-            #Faraz - for dynamic network at clients
-            self.bandwidth_profiles_dir = self.args.bandwidth_profiles_dir
-            self.bandwidth_profiles = []
-            #Faraz - client participation rate
-            self.client_participation_rate = {}
-            self.participation_per_round = {}
-            self.clients_aggregated_per_round = {}
-            self.clients_aggregated = []
-            #Faraz - client resource usage
-            self.total_resources_selected_clients = []
-            self.total_virtual_time_selected_clients = []
-            #Faraz - RL agent
-            # self.rl_agent = RL()
-            self.rl_agent = RL_singleQ()
-            self.global_state = {}
-            #optimizations
-            self.optimizations = {}
-            self.rl_updates = {}
-            self.past_rl_updates = {}
-            self.past_clients_dropped_out = []
-        except Exception as e:
-            logging.error(e)
-            raise e
+        # number of registered executors
+        self.registered_executor_info = set()
+        self.test_result_accumulator = []
+        self.testing_history = {'data_set': args.data_set, 'model': args.model, 'sample_mode': args.sample_mode,
+                                'gradient_policy': args.gradient_policy, 'task': args.task,
+                                'perf': collections.OrderedDict()}
+        self.log_writer = SummaryWriter(log_dir=logger.logDir)
+        #Faraz - dynamically set the per round total workers
+        self.total_worker = args.total_worker if args.total_worker > 0 else args.initial_total_worker
+        #Faraz - mode
+        self.mode = self.args.mode
+        logging.info(f"self.args.mode: {self.mode}")
+        #Faraz - add clients dropout information
+        self.clients_to_run = []
+        self.clients_dropped_out = []
+        self.dropped_clients_resource_usage = []
+        self.deadline_differences = []
+        self.deadline_differences_per_round = {}
+        self.clients_dropped_out_per_round = {}
+        self.dropped_clients_resource_usage_per_round = {}
+        self.dropped_clients_resource_durations_per_round = {}
+        #Faraz - FedBuff
+        self.client_results_buffer = collections.deque()
+        self.buffer_size = self.args.buffer_size or 10
+        #Faraz - for dynamic network at clients
+        self.bandwidth_profiles_dir = self.args.bandwidth_profiles_dir
+        self.bandwidth_profiles = []
+        #Faraz - client participation rate
+        self.client_participation_rate = {}
+        self.participation_per_round = {}
+        self.clients_aggregated_per_round = {}
+        self.clients_aggregated = []
+        #Faraz - client resource usage
+        self.total_resources_selected_clients = []
+        self.total_virtual_time_selected_clients = []
+        #Faraz - RL agent
+        # self.rl_agent = RL()
+        self.rl_agent = RL_singleQ()
+        self.global_state = {}
+        #optimizations
+        self.optimizations = {}
+        self.rl_updates = {}
+        self.past_rl_updates = {}
+        self.past_clients_dropped_out = []
+        # except Exception as e:
+        #     logging.error(e)
+        #     raise e
 
         if args.wandb_token != "":
             os.environ['WANDB_API_KEY'] = args.wandb_token
@@ -1605,7 +1604,7 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
 
 if __name__ == "__main__":
     try:
-        logging.info("Faraz - Starting aggregator ...")
+        print("Faraz - Starting aggregator ...")
         aggregator = Aggregator(parser.args)
         aggregator.run()
     except Exception as e:

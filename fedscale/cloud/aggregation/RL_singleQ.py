@@ -17,7 +17,7 @@ np.random.seed(0)
 
 
 class RL:
-    def __init__(self, total_clients=200, participation_rate=50, discount_factor=0, learning_rate=1.0, exploration_prob=0.5, actions=[1, 2]):
+    def __init__(self, total_clients=200, participation_rate=50, discount_factor=0, learning_rate=1.0, exploration_prob=0.0, actions=[1, 2]):
         self.total_clients = total_clients
         self.participation_rate = participation_rate
         self.learning_rate = learning_rate
@@ -84,11 +84,11 @@ class RL:
                     # Iterate through the data to find the key with the maximum combined score
                     average_acc = sum([value['accuracy'] for key, value in action_rewards.items()]) / len(action_rewards)
                     if average_acc < 0.5:
-                        self.w_p = 0.7
-                        self.w_a = 0.3
+                        self.w_p = 0.5
+                        self.w_a = 0.5
                     else:
-                        self.w_p = 0.3
-                        self.w_a = 0.7
+                        self.w_p = 0.5
+                        self.w_a = 0.5
 
                     for key, value in action_rewards.items():
                         combined_score = self.w_p*value['participation_success'] + (self.w_a*value['accuracy'])/value['count']
@@ -142,8 +142,11 @@ class RL:
             Q_future = max(self.Q[new_state_key].values(), key=lambda item: (item['participation_success'], item['accuracy']))
             if selected_client in list(self.selected_actions_rewards.keys()):
                 self.selected_actions_rewards[selected_client] += self.w_p*rewards['participation_success'] + (self.w_a*rewards['accuracy'][0] if isinstance(rewards['accuracy'], list) else rewards['accuracy'])
-                calculated_reward = self.w_p*rewards['participation_success'] + (self.w_a*rewards['accuracy'])
+                participation_reward = self.w_p*rewards['participation_success']
+                accuracy_reward = self.w_a*rewards['accuracy']
+                calculated_reward = participation_reward + accuracy_reward
                 self.rewards_per_round.append(calculated_reward)
+                logging.info(f'Faraz - debug rewards: participation_success: {participation_reward}, accuracy: {accuracy_reward}, calculated_reward: {calculated_reward}')
                 # logging.info(f'participation_success: {rewards["participation_success"]}, accuracy: {rewards["accuracy"]}')
                 # logging.info('update - rewards: {}'.format(calculated_reward))
             # Normalize Q_future values for 'participation_success' and 'accuracy'
@@ -158,7 +161,7 @@ class RL:
             #         item['accuracy'] = 0
             #     else:
             #         item['accuracy'] /= max_accuracy
-            learning_rate = max(self.learning_rate*round/100, 1.0)
+            learning_rate = max(self.learning_rate*round/50, 1.0)
             # Update Q-values separately for each objective
             for objective, reward in rewards.items():
                 # updated_Q = Q_current[objective] + self.learning_rate * (reward + self.discount_factor * Q_future[objective] - Q_current[objective])
@@ -199,7 +202,7 @@ class RL:
 
     def save_Q(self, path):
         try:
-            # return
+            return
             path = os.path.join(path, 'Q.pkl')
             logging.info("Saving Q to {}".format(path))
             with open(path, 'wb') as f:

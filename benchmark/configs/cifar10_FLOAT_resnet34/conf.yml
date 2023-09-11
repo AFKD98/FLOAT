@@ -2,19 +2,19 @@
 
 # ========== Cluster configuration ==========
 # ip address of the parameter server (need 1 GPU process)
-ps_ip: wanda2
+ps_ip: localhost
 # ip address of each worker:# of available gpus process on each gpu in this node
 # Note that if we collocate ps and worker on same GPU, then we need to decrease this number of available processes on that GPU by 1
 # E.g., master node has 4 available processes, then 1 for the ps, and worker should be set to: worker:3
 worker_ips:
-    - wanda2:[1]
+    - localhost:[1]
 
 exp_path: $FEDSCALE_HOME/fedscale/cloud
 
 # Entry function of executor and aggregator under $exp_path
 executor_entry: execution/executor.py
 
-aggregator_entry: aggregation/aggregator_float_individual_optimization.py
+aggregator_entry: aggregation/aggregator_float.py
 
 auth:
     ssh_user: ""
@@ -30,34 +30,34 @@ setup_commands:
 job_conf:
     - job_name: cifar                     # Generate logs under this folder: log_path/job_name/time_stamp
     - log_path: $FEDSCALE_HOME/benchmark    # Path of log files
-    - num_participants: 20                  # Number of participants per round, we use K=100 in our paper, large K will be much slower
+    - num_participants: 50                  # Number of participants per round, we use K=100 in our paper, large K will be much slower
     - data_set: cifar10                     # Dataset: openImg, google_speech, stackoverflow
     - data_dir: $FEDSCALE_HOME/benchmark/dataset/data/cifar    # Path of the dataset
     - data_map_file: $FEDSCALE_HOME/benchmark/dataset/data/cifar/client_data_mapping/train.csv              # Allocation of data to each client, turn to iid setting if not provided
-    - device_conf_file: $FEDSCALE_HOME/benchmark/dataset/data/device_info/client_device_capacity_resnet_34_lstm     # Path of the client trace
+    - device_conf_file: $FEDSCALE_HOME/benchmark/dataset/data/device_info/client_device_capacity     # Path of the client trace
     - device_avail_file: $FEDSCALE_HOME/benchmark/dataset/data/device_info/client_behave_trace
     - model: resnet34                       # NOTE: Please refer to our model zoo README and use models for these small image (e.g., 32x32x3) inputs
     # - model_zoo: fedscale-torch-zoo
     - eval_interval: 1                     # How many rounds to run a testing on the testing set
-    - rounds: 501                          # Number of rounds to run this training. We use 1000 in our paper, while it may converge w/ ~400 rounds
+    - rounds: 301                          # Number of rounds to run this training. We use 1000 in our paper, while it may converge w/ ~400 rounds
     - filter_less: 21                       # Remove clients w/ less than 21 samples
     - num_loaders: 2
     - local_steps: 5
     - learning_rate: 0.01
     - batch_size: 20
     - test_bsz: 20
-    - max_concurrency: 20
+    - max_concurrency: 50
     - max_staleness: 5
     - use_cuda: True
     - mode: 'FLOAT'
     - task: cv
-    - total_worker: 20                      # Number of participants per round, we use K=100 in our paper, large K will be much slower
+    - total_worker: 50                      # Number of participants per round, we use K=100 in our paper, large K will be much slower
     - sample_mode: "random"
     - gradient_policy: "fed-avg"                 # {"fed-yogi", "fed-prox", "fed-avg"}, "fed-avg" by default
     - eval_interval: 1                     # How many rounds to run a testing on the testing set
     - use_wandb: 1
     - last_worker: 0
-    - partitioning: 4
+    - partitioning: -1
     - dirichlet_alpha: 0.05
     - zipf_param: 1.95
     - filter_class_ratio: 0.4
