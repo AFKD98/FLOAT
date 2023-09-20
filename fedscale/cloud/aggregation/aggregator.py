@@ -858,7 +858,7 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
     def _is_last_result_in_round(self):
         return self.model_in_update == self.tasks_round
 
-    def select_participants(self, select_num_participants, overcommitment=1.3, sort_clients = False):
+    def select_participants(self, select_num_participants, overcommitment=1.0, sort_clients = False):
         """Select clients for next round.
 
         Args:
@@ -870,6 +870,11 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
 
         """
         try:
+            if self.mode == 'fedAvg':
+                return self.client_manager.select_participants(
+                    select_num_participants,
+                    cur_time=self.global_virtual_clock,
+                )
             if sort_clients:
                 return sorted(self.client_manager.select_participants(
                     int(select_num_participants * overcommitment),
@@ -1043,6 +1048,12 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
                 self.dropped_clients_resource_usage_per_round[self.round] = []
                 self.dropped_clients_resource_durations_per_round[self.round] = []
                 self.deadline_differences_per_round[self.round] = []
+                
+            if self.rl_updates != {}:
+                self.past_rl_updates = copy.deepcopy(self.rl_updates)
+                #Faraz- Reset the updates
+                self.rl_updates = {}
+                gc.collect()
             
             (clients_to_run, round_stragglers, virtual_client_clock, round_duration,
             flatten_client_duration) = self.tictak_client_tasks(
@@ -1084,11 +1095,11 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
                 # if self.round % 50 == 0 or self.round == 1:
                 #Faraz - validate missed(succeeded + dropped) clients every round
                 # logging.info('before going in rl_updates: {}'.format(self.rl_updates))
-                if self.round % 50 == 0:
+                if self.round % 50 == 0 or self.round == 2:
                     self.broadcast_aggregator_events(commons.UPDATE_MODEL)
                     self.broadcast_aggregator_events(commons.MODEL_TEST)
                     # self.rl_agent.save_Q('rl_agent')
-                    if self.round % 50 == 0:
+                    if self.round % 50 == 0 or self.round == 2:
                         self.broadcast_aggregator_events(commons.CLIENT_VALIDATE_ALL)
                 else:
                     self.broadcast_aggregator_events(commons.UPDATE_MODEL)
@@ -1183,6 +1194,31 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
         """
         return pickle.dumps(responses)
 
+    # def validation_completion_handler(self, client_id, results):
+    #     """Each executor will handle a subset of validation dataset
+
+    #     Args:
+    #         client_id (int): The client id.
+    #         results (dictionary): The client validation accuracies.
+
+    #     """
+    #     try:
+    #         logging.info('Validation completion handler results: {}'.format(results))
+    #         # logging.info('validation_completion_handler: BEFORE self.rl_updates: {}'.format(self.rl_updates))
+    #         for client_id, accuracy in results.items():
+    #             # logging.info('Client {} validation accuracy: {}'.format(client_id, accuracy))
+    #             if client_id not in self.rl_updates:
+    #                 if 'reward' not in self.rl_updates[client_id]:
+    #                     self.rl_updates[client_id]['reward'] = {}
+    #                     self.rl_updates[client_id]['reward']['accuracy'] = []
+    #             self.rl_updates[client_id]['reward']['accuracy'].append(float(("%.17f" % accuracy).rstrip('0').rstrip('.')))
+            
+    #         # logging.info('validation_completion_handler: AFTER self.rl_updates: {}'.format(self.rl_updates))
+
+    #     except Exception as e:
+    #         logging.error('Error in validation completion handler: ', e)
+    #         raise e
+        
     def validation_completion_handler(self, client_id, results):
         """Each executor will handle a subset of validation dataset
 
@@ -1196,18 +1232,27 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
             # logging.info('validation_completion_handler: BEFORE self.rl_updates: {}'.format(self.rl_updates))
             for client_id, accuracy in results.items():
                 # logging.info('Client {} validation accuracy: {}'.format(client_id, accuracy))
-                if client_id not in self.rl_updates:
-                    if 'reward' not in self.rl_updates[client_id]:
-                        self.rl_updates[client_id]['reward'] = {}
-                        self.rl_updates[client_id]['reward']['accuracy'] = []
-                self.rl_updates[client_id]['reward']['accuracy'].append(float(("%.17f" % accuracy).rstrip('0').rstrip('.')))
+                if client_id not in self.past_rl_updates:
+                    self.past_rl_updates[client_id] = {}
+                    if 'reward' not in self.past_rl_updates[client_id]:
+                        self.past_rl_updates[client_id]['reward'] = {}
+                        self.past_rl_updates[client_id]['reward']['accuracy'] = []
+                # if accuracy > 0:
+                #     self.past_rl_updates[client_id]['reward']['accuracy'].append(1)
+                # else:
+                #     self.past_rl_updates[client_id]['reward']['accuracy'].append(-1)
+                self.past_rl_updates[client_id]['reward']['accuracy'].append(accuracy)
+            #Faraz - update RL agent after every client validation
+            logging.info('past_rl_updates: {} in round: {}'.format(self.past_rl_updates, self.round))
+            self.update_RL_agent()
+            self.past_rl_updates = {}
             
             # logging.info('validation_completion_handler: AFTER self.rl_updates: {}'.format(self.rl_updates))
 
         except Exception as e:
             logging.error('Error in validation completion handler: ', e)
             raise e
-
+            
     def testing_completion_handler(self, client_id, results):
         
         """Each executor will handle a subset of testing dataset

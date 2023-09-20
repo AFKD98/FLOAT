@@ -308,7 +308,7 @@ class Executor(object):
 
         """
         try:
-            client_id, train_config, optimization = config['client_id'], config['task_config'], config['optimization']
+            client_id, train_config, optimization = config['client_id'], config['task_config'], config['optimization'] if config.get('optimization') else None
             # logging.info(f"Received client train request for client {client_id} with optimization {optimization}")
             self.training_requests_received+=1
             if 'model' not in config or not config['model']:
@@ -728,8 +728,9 @@ class Executor(object):
                         train_config['client_id'] = int(train_config['client_id'])
                         # if train_config['optimization']:
                         #     train_config['optimization'] = int(train_config['optimization'])
+                        logging.info(f"Received client train request for client {train_config['client_id']}")
                         client_id, train_res = self.Train(train_config)
-
+                        logging.info(f"Training completed for client {client_id}")
                         # Upload model updates
                         future_call = self.aggregator_communicator.stub.CLIENT_EXECUTE_COMPLETION.future(
                             job_api_pb2.CompleteRequest(client_id=str(client_id), executor_id=self.executor_id,

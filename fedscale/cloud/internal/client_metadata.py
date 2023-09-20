@@ -24,8 +24,8 @@ class ClientMetadata:
         
         #Faraz - get samples per client from saved partitions
         # filename = '/home/ahmad/FedScale/benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha1.0'
-        # filename = '/home/ahmad/FedScale/benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha0.1'
-        filename = '/home/ahmad/FedScale/benchmark/dataset/data/cifar/metadata/cifar10/data_mappings/part-1_clients200_data50000_labels10_samples0'
+        filename = '/home/ahmad/FedScale/benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha0.1'
+        # filename = '/home/ahmad/FedScale/benchmark/dataset/data/cifar/metadata/cifar10/data_mappings/part-1_clients200_data50000_labels10_samples0'
         partitions = pickle.load(open(filename, 'rb'))
         # logging.info(f'partitions: {len(partitions)}')
         self.samples_per_client = len(partitions[client_id-1])

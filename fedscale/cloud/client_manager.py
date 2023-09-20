@@ -341,8 +341,8 @@ class ClientManager:
             self.count += 1
 
             clients_online = self.getFeasibleClients(cur_time)
-            # if self.mode == "fedAvg":
-            #     clients_online = self.getAllClients()
+            if self.mode == "fedAvg":
+                clients_online = self.getAllClients()
             if len(clients_online) <= num_of_clients:
                 return clients_online
 
@@ -361,8 +361,8 @@ class ClientManager:
                 self.rng.shuffle(clients_online)
                 client_len = min(num_of_clients, len(clients_online) - 1)
                 #Faraz - temporarily changing it for RL agent
-                pickled_clients = clients_online[:client_len]
-                # pickled_clients = random.sample(clients_online, client_len)
+                # pickled_clients = clients_online[:client_len]
+                pickled_clients = random.sample(clients_online, client_len)
             else:
                 self.rng.shuffle(clients_online)
                 client_len = min(num_of_clients, len(clients_online) - 1)

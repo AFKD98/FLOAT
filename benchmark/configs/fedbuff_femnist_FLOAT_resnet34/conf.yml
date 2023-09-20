@@ -15,7 +15,7 @@ exp_path: $FEDSCALE_HOME/fedscale/cloud
 # Entry function of executor and aggregator under $exp_path
 executor_entry: execution/executor.py
 
-aggregator_entry: aggregation/aggregator_float.py
+aggregator_entry: aggregation/async_aggregator_FLOAT.py
 
 auth:
     ssh_user: ""
@@ -31,7 +31,7 @@ setup_commands:
 job_conf:
     - job_name: femnist                     # Generate logs under this folder: log_path/job_name/time_stamp
     - log_path: $FEDSCALE_HOME/benchmark    # Path of log files
-    - num_participants: 30                  # Number of participants per round, we use K=100 in our paper, large K will be much slower
+    - num_participants: 100                  # Number of participants per round, we use K=100 in our paper, large K will be much slower
     - data_set: femnist                     # Dataset: openImg, google_speech, stackoverflow
     - data_dir: $FEDSCALE_HOME/benchmark/dataset/data/femnist    # Path of the dataset
     - data_map_file: $FEDSCALE_HOME/benchmark/dataset/data/femnist/client_data_mapping/train.csv              # Allocation of data to each client, turn to iid setting if not provided
@@ -44,22 +44,23 @@ job_conf:
     - filter_less: 21                       # Remove clients w/ less than 21 samples
     - num_loaders: 2
     - local_steps: 5
+    - buffer_size: 30
     - learning_rate: 0.01
     - batch_size: 20
     - test_bsz: 20
-    - max_concurrency: 30
+    - max_concurrency: 100
     - max_staleness: 5
     - use_cuda: True
-    - mode: 'FLOAT'
+    - mode: 'Fedbuff'
     - task: cv
-    - total_worker: 30                      # Number of participants per round, we use K=100 in our paper, large K will be much slower
-    - sample_mode: "random"
+    - total_worker: 10                      # Number of participants per round, we use K=100 in our paper, large K will be much slower
+    - sample_mode: "fedAvg"
     - gradient_policy: "fed-avg"                 # {"fed-yogi", "fed-prox", "fed-avg"}, "fed-avg" by default
     - eval_interval: 1                     # How many rounds to run a testing on the testing set
     - use_wandb: 1
     - last_worker: 0
     - partitioning: 4
-    - dirichlet_alpha: 0.05
+    - dirichlet_alpha: 0.1
     - zipf_param: 1.95
     - filter_class_ratio: 0.4
     - total_clients: 200
@@ -67,4 +68,6 @@ job_conf:
     - model_boost: 0
     - stale_all: 0
     - adapt_selection: 1
-    - bandwidth_profiles_dir: $FEDSCALE_HOME/benchmark/dataset/data/device_info/client_device_traces.csv #Farz - path of client trace for dynamic networks
+    - val_ratio: 0.001
+    - overcommitment: 1.0
+    - bandwidth_profiles_dir: $FEDSCALE_HOME/benchmark/dataset/data/device_info/client_device_traces.csv #Faraz - path of client trace for dynamic networks

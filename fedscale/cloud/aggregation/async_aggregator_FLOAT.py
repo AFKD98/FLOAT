@@ -5,9 +5,12 @@ from heapq import heappush, heappop
 import numpy as np
 from overrides import overrides
 import math
+from collections import deque
 
 from fedscale.cloud.fllibs import *
 from fedscale.cloud.aggregation.aggregator import Aggregator
+from fedscale.utils.compressors.quantization import QSGDCompressor
+from fedscale.utils.compressors.pruning import Pruning
 
 
 class AsyncAggregator(Aggregator):
@@ -52,19 +55,36 @@ class AsyncAggregator(Aggregator):
                 self.client_task_start_times[client] = event_time
                 self.client_task_model_version[client] = self.round
             else:
-                if len(self.clients_dropped_per_duration) > 0 and client in self.clients_dropped_per_duration[event_time]:
-                    if self.event_type == 'start':
-                        self.current_concurrency -= 1
-                    # logging.info("Faraz - Client {} dropped out".format(client))
-                else:
-                    # print("Client {} dropped out".format(client))
-                    client_resources = self.client_manager.get_client_resources(client)
-                    self.update_client_dropped_out(client, exe_cost, deadline_difference, client_resources)
-                    self.clients_dropped_per_duration[event_time].append(client)
+                client_active = False
+                #Apply optimization to see if the client will be able to participate
+                if not client_active:
+                    action = self.get_optimization(client)
+                    client_active, newRoundDuration, compressed_weights, new_exe_cost = self.perform_optimization(client_cfg, client, action, duration, exe_cost, event_time)
+                    exe_cost = new_exe_cost
+                    
+                if client_active and new_exe_cost:
+                    end_time = event_time + newRoundDuration
                     heappush(self.min_pq, (event_time, 'start', client))
                     heappush(self.min_pq, (end_time, 'end', client))
                     self.client_task_start_times[client] = event_time
                     self.client_task_model_version[client] = self.round
+                    if self.optimizations.get(client) is None:
+                        self.optimizations[client] = deque()
+                    self.optimizations[client].append({'optimization': action, 'model_weights': compressed_weights if compressed_weights else self.model_wrapper.get_weights()})
+                else:
+                    if len(self.clients_dropped_per_duration) > 0 and client in self.clients_dropped_per_duration[event_time]:
+                        if self.event_type == 'start':
+                            self.current_concurrency -= 1
+                        # logging.info("Faraz - Client {} dropped out".format(client))
+                    else:
+                        # print("Client {} dropped out".format(client))
+                        client_resources = self.client_manager.get_client_resources(client)
+                        self.update_client_dropped_out(client, exe_cost, deadline_difference, client_resources)
+                        self.clients_dropped_per_duration[event_time].append(client)
+                        heappush(self.min_pq, (event_time, 'start', client))
+                        heappush(self.min_pq, (end_time, 'end', client))
+                        self.client_task_start_times[client] = event_time
+                        self.client_task_model_version[client] = self.round
             self.total_resources_selected_clients.append(exe_cost)
                 # self.current_concurrency-=1
         except Exception as e:
@@ -86,7 +106,13 @@ class AsyncAggregator(Aggregator):
         try:
             next_client_id = self.resource_manager.get_next_task(executor_id)
             config = self.get_client_conf(next_client_id)
-            train_config = {'client_id': next_client_id, 'task_config': config}
+            if self.optimizations.get(next_client_id) is not None and len(self.optimizations[next_client_id])>0:
+                action = self.optimizations[next_client_id].popleft()
+                train_config = {'client_id': next_client_id, 'task_config': config, 'optimization': action['optimization']}
+                # client_train_model = copy.deepcopy(action['model_weights'])
+                client_train_model = copy.deepcopy(self.model_wrapper.get_weights())
+                return train_config, client_train_model
+            train_config = {'client_id': next_client_id, 'task_config': config, 'optimization': None}
             model_version = self.client_task_model_version[next_client_id]
             if len(self.model_cache) <= (self.round - model_version):
                 return train_config, self.model_cache[-1]
@@ -95,6 +121,185 @@ class AsyncAggregator(Aggregator):
             raise e
         return train_config, self.model_cache[self.round - model_version]
 
+
+    @overrides
+    def get_val_config(self, clients=None):
+        """FL model testing on clients, developers can further define personalized client config here.
+
+        Args:
+            client_id (int): The client id.
+
+        Returns:
+            dictionary: The testing config for new task.
+
+        """
+        # logging.info('get_val_config self.rl_updates: {}'.format(self.rl_updates))
+        try:
+            if clients:
+                return {'round': self.round, 'clients': clients}
+            return {'round': self.round, 'clients': self.client_manager.getAllClients()}
+        except Exception as e:
+            logging.error(f'Error in get_val_config: {e}')
+            raise e
+        
+    @overrides
+    def get_optimization(self, client_to_run):
+        try:
+            '''Get the optimization method for the current client.'''
+            client_local_state = self.client_manager.get_client_local_state(client_to_run)
+            optimization = self.rl_agent.choose_action_per_client(self.global_state, client_local_state, client_to_run)
+            return optimization
+        except Exception as e:
+            logging.error(f'Error in get_optimization: {e}')
+            raise e
+    
+    
+    @overrides
+    def compress_model(self, optimization):
+        try:
+            compressed_weights = []
+            total_size = 0
+            # logging.info('HERE41')
+            for weight in self.model_wrapper.get_weights():
+                compressed_weight, size = self.q_compressor.compress(weight, n_bit=optimization)
+                # logging.info('HERE42')
+                total_size += int(size)
+                # logging.info('HERE42')
+                compressed_weights.append(compressed_weight)
+                # logging.info('HERE43')
+                
+            return compressed_weights, total_size
+        except Exception as e:
+            logging.error('Error in compressing model: ', e)
+            raise e
+    
+    def prune_model(self, prune_percentage=0.45):
+        try:
+            pruned_model, reduction_ratio = self.pruning.prune_model(self.model_wrapper.get_model(), prune_percentage, self.train_dataset)
+            return pruned_model, reduction_ratio
+        
+        except Exception as e:
+            logging.error('Error in pruning model: ', e)
+            raise e
+
+    @overrides
+    def decompress_model(self, model, optimization=8):
+        try:
+            decompressed_weights = []
+            for weight in model:
+                decompressed_weight = self.q_compressor.decompress(weight, n_bit=optimization)
+                decompressed_weights.append(decompressed_weight)
+            return decompressed_weights
+        except Exception as e:
+            logging.error('Error in decompressing model: ', e)
+            raise e
+    @overrides
+    def update_RL_agent(self):
+        '''Update the RL agent with the current client's information.'''
+        try:
+
+            #Faraz - sum of rewards
+            # logging.info('sum of rewards: {}'.format(sum(self.rl_agent.selected_actions_rewards.values())))
+            exploited_client_ids = list(self.rl_agent.selected_actions_rewards.keys())
+            for client_id, update in self.past_rl_updates.items():
+                if 'global_state' in update:
+                    global_state = update['global_state']
+                    local_state = update['local_state']
+                    optimization = update['optimization']
+                    new_global_state = update['new_global_state']
+                    new_local_state = update['new_local_state']
+                    reward = update['reward']
+                    reward['accuracy'] = np.mean(reward['accuracy'])
+                    self.rl_agent.update_Q_per_client(client_id, global_state, local_state, optimization, new_global_state, new_local_state, reward, self.round)
+                    self.rl_agent.save_Q('/home/ahmad/FedScale/benchmark/logs/rl_model')
+                    #remove from rl_updates
+                    if client_id in exploited_client_ids:
+                        self.rl_agent.selected_actions_rewards.pop(client_id)
+                    # logging.info(f'Updated RL Q table: {self.rl_agent.Q}')
+                else:
+                    logging.info('No update for RL agent')
+            # logging.info('update_RL_agent: rl_updates: {}'.format(self.rl_updates))
+            logging.info('Faraz - Rewards in round {}: {}'.format(self.round, self.rl_agent.rewards_per_round))
+            logging.info(f'Sum of rewards in round {self.round}: {sum(self.rl_agent.rewards_per_round)}')
+            
+            # self.rl_agent.print_overhead_times()
+        except Exception as e:
+            logging.error('Error in updating RL agent: ', e)
+            raise e
+
+    @overrides
+    def perform_optimization(self, client_cfg, client_to_run, optimization, oldroundDuration, exe_cost, event_time):
+        '''Perform the optimization method for the current client.'''
+        try:
+            client_local_state = self.client_manager.get_client_local_state(client_to_run)
+            # logging.info('HERE40')
+            compressed_weights = None
+            logging.info(f'Faraz - optimization: {optimization} for client {client_to_run}')
+            if 'quantization' in optimization:
+                q_bit = int(optimization.split('_')[1])
+                compressed_weights, size = self.compress_model(q_bit)
+                logging.info(f"Faraz - Compressed model size: {size / 1024.0 * 8}, seize before compression: {self.model_update_size}")
+                size =  size / 1024.0 * 8.  # kbits
+                exe_cost = self.client_manager.get_completion_time_with_variable_network(
+                            client_to_run,
+                            batch_size=client_cfg.batch_size,
+                            local_steps=client_cfg.local_steps,
+                            upload_size=size,
+                            download_size=self.model_update_size)
+                
+                roundDuration = exe_cost['computation'] + \
+                                            exe_cost['communication']
+            elif 'pruning' in optimization:
+                prune_percentage = int(optimization.split('_')[1])*0.01
+                # pruned_model, reduction_ratio = self.prune_model(prune_percentage)
+                #Faraz - debug - temporarily using prune percentage as reduction ratio
+                reduction_ratio = 1.0-prune_percentage
+                roundDuration = exe_cost['computation']*reduction_ratio + exe_cost['communication']*reduction_ratio
+            elif 'partial' in optimization:
+                partial_training_percentage = 1.0 - int(optimization.split('_')[1])*0.01
+                # pruned_model, reduction_ratio = self.prune_model(partial_training_percentage)
+                #Faraz - debug - temporarily using prune percentage as reduction ratio
+                new_local_steps = int((partial_training_percentage)*self.args.local_steps)
+                # logging.info(f'Faraz - debug old vs new local steps and partial_training_percentage: {self.args.local_steps}, {new_local_steps}, {partial_training_percentage}')
+                roundDuration = (exe_cost['computation']//self.args.local_steps)*new_local_steps + exe_cost['communication']
+                
+
+            isactive, olddeadline_difference = self.client_manager.isClientActivewithDeadline(client_to_run, oldroundDuration + event_time)
+            client_active, deadline_difference = self.client_manager.isClientActivewithDeadline(client_to_run, roundDuration + event_time)
+            logging.info(f"Faraz - Client {client_to_run} is active: {client_active}, deadline difference: {deadline_difference}, old deadline difference: {olddeadline_difference}, round duration difference: {abs(oldroundDuration - roundDuration)}")
+            if client_active:
+                logging.info('Faraz - Successfully scheduled client {} for round {} with optimization {} and round duration reduction of {}%'.format(client_to_run, self.round, optimization, oldroundDuration - roundDuration))
+                
+                # self.rl_agent.update_Q_per_client(client_to_run, self.global_state, client_local_state, optimization, self.global_state, client_local_state, 1)
+                self.rl_updates[client_to_run] = {'client_to_run': client_to_run, 'global_state': self.global_state, 'local_state': client_local_state, 'optimization': optimization, 'new_global_state': self.global_state, 'new_local_state': client_local_state, 'reward': {'participation_success': 1.0, 'accuracy': []}}
+                logging.info('rl_updates: {}'.format(self.rl_updates))
+                self.rl_agent.print_overhead_times()
+                if 'quantization' in optimization:
+                    return True, roundDuration, compressed_weights, exe_cost
+                elif 'pruning' in optimization:
+                    return True, roundDuration, None, exe_cost
+                elif 'partial' in optimization:
+                    return True, roundDuration, None, exe_cost
+                
+            else:
+                participationSuccess = -1.0
+                if int(optimization.split('_')[1])>=75:
+                    participationSuccess = 1.0
+                logging.info('Faraz - Failed to schedule client {} for round {} with optimization {} and round duration reduction of {}%'.format(client_to_run, self.round, optimization, abs(oldroundDuration - roundDuration)))
+                # self.rl_agent.update_Q_per_client(client_to_run, self.global_state, client_local_state, optimization, self.global_state, client_local_state, -1)
+                self.rl_updates[client_to_run] =  {'client_to_run': client_to_run, 'global_state': self.global_state, 'local_state': client_local_state, 'optimization': optimization, 'new_global_state': self.global_state, 'new_local_state': client_local_state, 'reward': {'participation_success': participationSuccess, 'accuracy': []}}
+                logging.info('rl_updates: {}'.format(self.rl_updates))
+                self.rl_agent.print_overhead_times()
+                if 'quantization' in optimization:
+                    return False, roundDuration, compressed_weights, exe_cost
+                elif 'pruning' in optimization:
+                    return False, roundDuration, None, exe_cost
+                elif 'partial' in optimization:
+                    return False, roundDuration, None, exe_cost
+        except Exception as e:
+            logging.error('Error in performing optimization: ', e)
+            raise e
+        
     @overrides
     def tictak_client_tasks(self, sampled_clients, num_clients_to_collect):
         """Record sampled client execution information in last round. In the SIMULATION_MODE,
@@ -182,6 +387,10 @@ class AsyncAggregator(Aggregator):
         #Faraz - dictionary to keep track of dropped out clients per round
         self.clients_dropped_per_duration = {}
         self.event_type = ''
+        self.q_compressor = QSGDCompressor(random=True, cuda=False)
+        self.pruning = Pruning(cuda=True)
+        self.train_dataset, self.test_dataset = init_dataset()
+        logging.info('train_dataset type: {}'.format(type(self.train_dataset)))
         logging.info("Setting up environment")
 
     @overrides
@@ -197,8 +406,11 @@ class AsyncAggregator(Aggregator):
         
         try:
             if self.mode!='Fedbuff':
-                logging.info("HERE35")
+                # logging.info("HERE35")
                 update_weights = results['update_weight']
+                if results.get('optimization'):
+                    n_bit = int(results['optimization'].split('_')[1])
+                    update_weights = self.decompress_model(update_weights, n_bit)
                 # Aggregation weight is derived from equation from "staleness scaling" section in the referenced FedBuff paper.
                 inverted_staleness = 1 / (1 + self.round - self.client_task_model_version[results['client_id']]) ** 0.5
                 self.aggregation_denominator += inverted_staleness
@@ -328,6 +540,41 @@ class AsyncAggregator(Aggregator):
             logging.error("Error in client_completion_handler: {}".format(e))
             raise e
             
+
+    @overrides
+    def validation_completion_handler(self, client_id, results):
+        """Each executor will handle a subset of validation dataset
+
+        Args:
+            client_id (int): The client id.
+            results (dictionary): The client validation accuracies.
+
+        """
+        try:
+            logging.info('Validation completion handler results: {}'.format(results))
+            # logging.info('validation_completion_handler: BEFORE self.rl_updates: {}'.format(self.rl_updates))
+            for client_id, accuracy in results.items():
+                # logging.info('Client {} validation accuracy: {}'.format(client_id, accuracy))
+                if client_id not in self.past_rl_updates:
+                    self.past_rl_updates[client_id] = {}
+                    if 'reward' not in self.past_rl_updates[client_id]:
+                        self.past_rl_updates[client_id]['reward'] = {}
+                        self.past_rl_updates[client_id]['reward']['accuracy'] = []
+                # if accuracy > 0:
+                #     self.past_rl_updates[client_id]['reward']['accuracy'].append(1)
+                # else:
+                #     self.past_rl_updates[client_id]['reward']['accuracy'].append(-1)
+                self.past_rl_updates[client_id]['reward']['accuracy'].append(accuracy)
+            #Faraz - update RL agent after every client validation
+            logging.info('past_rl_updates: {} in round: {}'.format(self.past_rl_updates, self.round))
+            self.update_RL_agent()
+            self.past_rl_updates = {}
+            
+            # logging.info('validation_completion_handler: AFTER self.rl_updates: {}'.format(self.rl_updates))
+
+        except Exception as e:
+            logging.error('Error in validation completion handler: ', e)
+            raise e
         
 if __name__ == "__main__":
     aggregator = AsyncAggregator(parser.args)

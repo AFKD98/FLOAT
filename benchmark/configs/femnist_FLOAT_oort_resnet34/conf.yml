@@ -53,7 +53,7 @@ job_conf:
     - mode: 'FLOAT'
     - task: cv
     - total_worker: 30                      # Number of participants per round, we use K=100 in our paper, large K will be much slower
-    - sample_mode: "random"
+    - sample_mode: "oort"
     - gradient_policy: "fed-avg"                 # {"fed-yogi", "fed-prox", "fed-avg"}, "fed-avg" by default
     - eval_interval: 1                     # How many rounds to run a testing on the testing set
     - use_wandb: 1
