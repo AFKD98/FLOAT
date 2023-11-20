@@ -469,7 +469,7 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
                 dynamic_network_profiles['normalized_throughput'] = dynamic_network_profiles['throughput_mbps'] / max_throughput
 
                 # Perform K-means clustering
-                k = 3  # Number of clusters
+                k = 2  # Number of clusters
                 kmeans = KMeans(n_clusters=k)
                 kmeans.fit(dynamic_network_profiles[['normalized_throughput']].values)
 
@@ -491,7 +491,7 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
             for _size in info['size']:
                 # cluster_id = (_size - 1) % k  # Map size to cluster ID
                 #high network
-                cluster_id = 1 # Map size to cluster ID
+                cluster_id = 0 # Map size to cluster ID
                 cluster_bandwidths = clusters[cluster_id]
 
                 # Since the worker rankId starts from 1, we also configure the initial dataId as 1

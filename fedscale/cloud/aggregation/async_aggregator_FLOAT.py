@@ -6,7 +6,7 @@ import numpy as np
 from overrides import overrides
 import math
 from collections import deque
-
+import gc
 from fedscale.cloud.fllibs import *
 from fedscale.cloud.aggregation.aggregator import Aggregator
 from fedscale.utils.compressors.quantization import QSGDCompressor
@@ -209,7 +209,9 @@ class AsyncAggregator(Aggregator):
                     new_global_state = update['new_global_state']
                     new_local_state = update['new_local_state']
                     reward = update['reward']
+                    logging.info('accuracy reward before averaging: {} of client {}'.format(reward['accuracy'], client_id))
                     reward['accuracy'] = np.mean(reward['accuracy'])
+                    logging.info('accuracy reward after averaging: {} of client {}'.format(reward['accuracy'], client_id))
                     self.rl_agent.update_Q_per_client(client_id, global_state, local_state, optimization, new_global_state, new_local_state, reward, self.round)
                     self.rl_agent.save_Q('/home/ahmad/FedScale/benchmark/logs/rl_model')
                     #remove from rl_updates
@@ -394,6 +396,55 @@ class AsyncAggregator(Aggregator):
         logging.info("Setting up environment")
 
     @overrides
+    def CLIENT_EXECUTE_COMPLETION(self, request, context):
+        """FL clients complete the execution task.
+
+        Args:
+            request (CompleteRequest): Complete request info from executor.
+
+        Returns:
+            ServerResponse: Server response to job completion request
+
+        """
+        try:
+            executor_id, client_id, event = request.executor_id, request.client_id, request.event
+            execution_status, execution_msg = request.status, request.msg
+            meta_result, data_result = request.meta_result, request.data_result
+
+            if event == commons.CLIENT_TRAIN:
+                # Training results may be uploaded in CLIENT_EXECUTE_RESULT request later,
+                # so we need to specify whether to ask client to do so (in case of straggler/timeout in real FL).
+                if execution_status is False:
+                    logging.error(f"Executor {executor_id} fails to run client {client_id}, due to {execution_msg}")
+
+                # TODO: whether we should schedule tasks when client_ping or client_complete
+                if self.resource_manager.has_next_task(executor_id):
+                    # NOTE: we do not pop the train immediately in simulation mode,
+                    # since the executor may run multiple clients
+                    if commons.CLIENT_TRAIN not in self.individual_client_events[executor_id]:
+                        # logging.info(f"Faraz - debug Executor {executor_id} has next task, schedule it")
+                        #Faraz - To do insert the validation here
+                        self.individual_client_events[executor_id].append(
+                            commons.CLIENT_TRAIN)
+                elif not self.resource_manager.has_next_task(executor_id) and self.rl_updates != {}:
+                    #Faraz - Add update and validate tasks
+                    logging.info(f"Faraz - debug Executor {executor_id} has no next task, schedule update and validate")
+                    self.individual_client_events[executor_id].append(commons.UPDATE_MODEL)
+                    self.individual_client_events[executor_id].append(commons.CLIENT_VALIDATE)
+                
+
+            elif event in (commons.MODEL_TEST, commons.UPLOAD_MODEL, commons.CLIENT_VALIDATE, commons.CLIENT_VALIDATE_ALL):
+                self.add_event_handler(
+                    executor_id, event, meta_result, data_result)
+            else:
+                logging.error(f"Received undefined event {event} from client {client_id}")
+
+            return self.CLIENT_PING(request, context)
+        except Exception as e:
+            logging.error(f"Error in CLIENT_EXECUTE_COMPLETION: {e}")
+            raise e
+        
+    @overrides
     def update_weight_aggregation(self, results):
         """Updates the aggregation with the new results.
 
@@ -475,7 +526,129 @@ class AsyncAggregator(Aggregator):
             logging.error("Error in update_weight_aggregation: {}".format(e))
             raise e
             
+    @overrides
+    def round_completion_handler(self):
+        """Triggered upon the round completion, it registers the last round execution info,
+        broadcast new tasks for executors and select clients for next round.
+        """
+        try:
+            # logging.info("HERE3")
+            self.global_virtual_clock += self.round_duration
+            self.round += 1
+            # logging.info('round_completion_handler1: rl_updates: {}'.format(self.rl_updates))
+            # if self.rl_updates != {}:
+            #     self.update_RL_agent()
+            #     #Faraz- Reset the updates
+            #     self.rl_updates = {}
+            #     gc.collect()
+            last_round_avg_util = sum(self.stats_util_accumulator) / max(1, len(self.stats_util_accumulator))
+            # assign avg reward to explored, but not ran workers
+            for client_id in self.round_stragglers:
+                self.client_manager.register_feedback(client_id, last_round_avg_util,
+                                                    time_stamp=self.round,
+                                                    duration=self.virtual_client_clock[client_id]['computation'] +
+                                                            self.virtual_client_clock[client_id]['communication'],
+                                                    success=False)
+            # logging.info("HERE4")
 
+            avg_loss = sum(self.loss_accumulator) / max(1, len(self.loss_accumulator))
+            logging.info(f"Wall clock: {round(self.global_virtual_clock)} s, round: {self.round}, Planned participants: " +
+                        f"{len(self.sampled_participants)}, Succeed participants: {len(self.stats_util_accumulator)}, Training loss: {avg_loss}")
+            # logging.info("HERE5")
+
+            # dump round completion information to tensorboard
+            if len(self.loss_accumulator):
+                self.log_train_result(avg_loss)
+            # logging.info("HERE6")
+            logging.info('Faraz - getting clients at time: {}'.format(self.global_virtual_clock))
+            # update select participants
+            self.sampled_participants = self.select_participants(
+                select_num_participants=self.args.num_participants, overcommitment=self.args.overcommitment)
+            # logging.info("HERE7")
+            #Faraz - update client participation history
+            for client_id in self.sampled_participants:
+                if client_id not in self.client_participation_rate:
+                    self.client_participation_rate[client_id] = []
+                else:
+                    self.client_participation_rate[client_id] +=1
+
+            #Faraz - incase no clients dropped out
+            if self.round not in self.clients_dropped_out_per_round:
+                self.clients_dropped_out_per_round[self.round] = []
+                self.dropped_clients_resource_usage_per_round[self.round] = []
+                self.dropped_clients_resource_durations_per_round[self.round] = []
+                self.deadline_differences_per_round[self.round] = []
+                
+            if self.rl_updates != {}:
+                self.past_rl_updates = copy.deepcopy(self.rl_updates)
+                #Faraz- Reset the updates
+                self.rl_updates = {}
+                gc.collect()
+            
+            (clients_to_run, round_stragglers, virtual_client_clock, round_duration,
+            flatten_client_duration) = self.tictak_client_tasks(
+                self.sampled_participants, self.args.num_participants)
+            self.clients_to_run = clients_to_run
+            #Faraz - update participation per round
+            self.participation_per_round[self.round] = len(self.sampled_participants) - len(self.clients_dropped_out_per_round[self.round])
+            
+            # logging.info("HERE8")
+            self.print_stats(clients_to_run)
+            # logging.info("HERE9")
+            # logging.info('round_completion_handler2: self.rl_updates: {}'.format(self.rl_updates))
+            if len(self.clients_to_run) > 0:
+                # Issue requests to the resource manager; Tasks ordered by the completion time
+                self.resource_manager.register_tasks(clients_to_run)
+                self.tasks_round = len(clients_to_run)
+
+                # Update executors and participants
+                if self.experiment_mode == commons.SIMULATION_MODE:
+                    self.sampled_executors = list(
+                        self.individual_client_events.keys())
+                else:
+                    self.sampled_executors = [str(c_id)
+                                            for c_id in self.sampled_participants]
+                self.round_stragglers = round_stragglers
+                self.virtual_client_clock = virtual_client_clock
+                self.flatten_client_duration = np.array(flatten_client_duration)
+                self.round_duration = round_duration
+                self.model_in_update = 0
+                self.test_result_accumulator = []
+                self.stats_util_accumulator = []
+                self.client_training_results = []
+                self.loss_accumulator = []
+                self.update_default_task_config()
+
+                if self.round >= self.args.rounds:
+                    self.broadcast_aggregator_events(commons.SHUT_DOWN)
+                # if self.round % self.args.eval_interval == 0 or self.round == 1:
+                # if self.round % 50 == 0 or self.round == 1:
+                #Faraz - validate missed(succeeded + dropped) clients every round
+                # logging.info('before going in rl_updates: {}'.format(self.rl_updates))
+                if self.round % 50 == 0 or self.round == 2:
+                    self.broadcast_aggregator_events(commons.UPDATE_MODEL)
+                    self.broadcast_aggregator_events(commons.MODEL_TEST)
+                    # self.rl_agent.save_Q('rl_agent')
+                    if self.round % 50 == 0 or self.round == 2:
+                        self.broadcast_aggregator_events(commons.CLIENT_VALIDATE_ALL)
+                else:
+                    self.broadcast_aggregator_events(commons.UPDATE_MODEL)
+                    self.broadcast_aggregator_events(commons.START_ROUND)
+                # if self.rl_updates!={}:
+                #     # logging.info('Going in rl_updates: {}'.format(self.rl_updates))
+                #     self.broadcast_aggregator_events(commons.UPDATE_MODEL)
+                #     self.broadcast_aggregator_events(commons.CLIENT_VALIDATE)
+                    
+                
+                
+            else:
+                #Faraz - Skip round if no clients to run
+                self.round_completion_handler()
+                logging.info('No clients to run, skipping round')
+        except Exception as e:
+            logging.error('Error in round completion handler: ', e)
+            raise e
+        
     @overrides
     def client_completion_handler(self, results):
         """We may need to keep all updates from clients,

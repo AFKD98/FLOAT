@@ -54,13 +54,13 @@ job_conf:
     - mode: 'Fedbuff'
     - task: cv
     - total_worker: 10                      # Number of participants per round, we use K=100 in our paper, large K will be much slower
-    - sample_mode: "fedAvg"
+    - sample_mode: "random"
     - gradient_policy: "fed-avg"                 # {"fed-yogi", "fed-prox", "fed-avg"}, "fed-avg" by default
     - eval_interval: 1                     # How many rounds to run a testing on the testing set
-    - use_wandb: 1
+    - use_wandb: 0
     - last_worker: 0
     - partitioning: 4
-    - dirichlet_alpha: 0.1
+    - dirichlet_alpha: 0.05
     - zipf_param: 1.95
     - filter_class_ratio: 0.4
     - total_clients: 200

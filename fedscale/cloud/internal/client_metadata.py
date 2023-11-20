@@ -24,7 +24,9 @@ class ClientMetadata:
         
         #Faraz - get samples per client from saved partitions
         # filename = '/home/ahmad/FedScale/benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha1.0'
-        filename = '/home/ahmad/FedScale/benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha0.1'
+        # filename = '/home/ahmad/FedScale/benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha0.05'
+        # filename = '/home/ahmad/FedScale/benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha0.1'
+        filename = '/home/ahmad/FedScale/benchmark/dataset/data/cifar/metadata/cifar10/data_mappings/part4_clients200_data50000_labels4_samples250_alpha0.1'
         # filename = '/home/ahmad/FedScale/benchmark/dataset/data/cifar/metadata/cifar10/data_mappings/part-1_clients200_data50000_labels10_samples0'
         partitions = pickle.load(open(filename, 'rb'))
         # logging.info(f'partitions: {len(partitions)}')
@@ -176,10 +178,14 @@ class ClientMetadata:
             self.bandwidth = self.get_new_network_bandwidth()
             if add_cpu_noise:
                 self.compute_speed_with_inference = np.random.uniform(0.1*self.compute_speed, 1.0*self.compute_speed)
+                # self.compute_speed_with_inference = np.random.uniform(0.01*self.compute_speed, 0.1*self.compute_speed)
+                # self.compute_speed_with_inference = 2*self.compute_speed
                 #high_network_low_cpu
                 # self.compute_speed_with_inference = self.compute_speed
             if add_network_noise:
+                # self.bandwidth = np.random.uniform(0.0001*self.bandwidth, 0.001*self.bandwidth)
                 self.bandwidth = np.random.uniform(0.1*self.bandwidth, 1.0*self.bandwidth)
+                # self.bandwidth = 0.2*self.bandwidth
             if self.bandwidth == 0 or self.compute_speed_with_inference == 0:
                 self.completion_time = {'computation': 10000, 'communication': 10000}
                 return self.completion_time

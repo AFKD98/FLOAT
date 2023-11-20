@@ -60,7 +60,7 @@ job_conf:
     - use_wandb: 1
     - last_worker: 0
     - partitioning: 4
-    - dirichlet_alpha: 0.05
+    - dirichlet_alpha: 0.1
     - zipf_param: 1.95
     - filter_class_ratio: 0.4
     - total_clients: 200

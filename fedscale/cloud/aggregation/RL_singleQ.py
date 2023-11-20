@@ -17,7 +17,7 @@ np.random.seed(0)
 
 
 class RL:
-    def __init__(self, total_clients=200, participation_rate=50, discount_factor=0, learning_rate=1.0, exploration_prob=0.5, actions=[1, 2]):
+    def __init__(self, total_clients=200, participation_rate=50, discount_factor=0, learning_rate=1.0, exploration_prob=0.6, actions=[1, 2]):
         self.total_clients = total_clients
         self.participation_rate = participation_rate
         self.learning_rate = learning_rate

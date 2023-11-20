@@ -101,7 +101,8 @@ class ClientManager:
             translated_local_state['deadline_difference'] = '4'
         else:
             translated_local_state['deadline_difference'] = '5'
-                    
+        #For ablation study - settting deadline difference to 0
+        # translated_local_state['deadline_difference'] = '0'
         return translated_local_state
             
     

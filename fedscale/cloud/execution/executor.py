@@ -24,6 +24,9 @@ from fedscale.utils.compressors.quantization import QSGDCompressor
 from fedscale.utils.compressors.pruning import Pruning
 import traceback
 
+from memory_profiler import profile
+import psutil
+
 class Executor(object):
     """Abstract class for FedScale executor.
 
@@ -332,6 +335,10 @@ class Executor(object):
             )
             # logging.info(f'HERE61 for client: {client_id}') 
             self.dispatch_worker_events(response)
+            
+            # Log memory usage information
+            process = psutil.Process()
+            logging.info(f"Memory Usage: {process.memory_info().rss / 1024 ** 3} GB")
             # logging.info(f'HERE62 for client: {client_id}') 
             return client_id, train_res
         except Exception as e:
@@ -605,6 +612,7 @@ class Executor(object):
                 train_res['optimization'] = optimization
                 # logging.info('Compressed model: {}'.format(train_res['update_weight']))
             # logging.info(f'HERE51 for client {client_id}')
+            train_res['optimization'] = optimization
             return train_res
         except Exception as e:
             logging.error(f"Training error {e} in client {client_id}")

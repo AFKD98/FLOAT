@@ -54,7 +54,7 @@ job_conf:
     - mode: 'Fedbuff'
     - task: cv
     - total_worker: 30                      # Number of participants per round, we use K=100 in our paper, large K will be much slower
-    - sample_mode: "random"
+    - sample_mode: "fedAvg"
     - gradient_policy: "fed-avg"                 # {"fed-yogi", "fed-prox", "fed-avg"}, "fed-avg" by default
     - eval_interval: 1                     # How many rounds to run a testing on the testing set
     - use_wandb: 1
@@ -69,4 +69,5 @@ job_conf:
     - stale_all: 0
     - adapt_selection: 1
     - val_ratio: 0.005
+    - overcommitment: 1.0
     - bandwidth_profiles_dir: $FEDSCALE_HOME/benchmark/dataset/data/device_info/client_device_traces.csv #Faraz - path of client trace for dynamic networks

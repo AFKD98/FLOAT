@@ -65,7 +65,11 @@ class FLOATAggregator(Aggregator):
         try:
             '''Get the optimization method for the current client.'''
             client_local_state = self.client_manager.get_client_local_state(client_to_run)
-            optimization = self.rl_agent.choose_action_per_client(self.global_state, client_local_state, client_to_run)
+            if int(client_local_state['computation']) < 3 and int(client_local_state['communication']) < 3:
+                return random.choice(['quantization_16', 'pruning_25','partial_25'])
+            else:
+                return random.choice(['quantization_8', 'pruning_75','partial_75'])
+            # optimization = self.rl_agent.choose_action_per_client(self.global_state, client_local_state, client_to_run)
             return optimization
         except Exception as e:
             logging.error(f'Error in get_optimization: {e}')
@@ -201,9 +205,8 @@ class FLOATAggregator(Aggregator):
                 
             else:
                 participationSuccess = -1.0
-                #Faraz - assuming at the highest level of optimization, the client will participate
-                # if int(optimization.split('_')[1])>=75 and 'partial' not in optimization:
-                #     participationSuccess = 1.0
+                if int(optimization.split('_')[1])>=75:
+                    participationSuccess = 1.0
                 logging.info('Faraz - Failed to schedule client {} for round {} with optimization {} and round duration reduction of {}%'.format(client_to_run, self.round, optimization, abs(oldroundDuration - roundDuration)))
                 # self.rl_agent.update_Q_per_client(client_to_run, self.global_state, client_local_state, optimization, self.global_state, client_local_state, -1)
                 self.rl_updates[client_to_run] =  {'client_to_run': client_to_run, 'global_state': self.global_state, 'local_state': client_local_state, 'optimization': optimization, 'new_global_state': self.global_state, 'new_local_state': client_local_state, 'reward': {'participation_success': participationSuccess, 'accuracy': []}}
@@ -270,7 +273,7 @@ class FLOATAggregator(Aggregator):
                         action = self.get_optimization(client_to_run)
                         #Faraz - for choosing static action
                         #Faraz - for testing individual optimization
-                        # action = 'partial_50'
+                        # action = 'quantization_8'
                         client_active, newRoundDuration, compressed_weights, new_exe_cost = self.perform_optimization(client_cfg, client_to_run, action, roundDuration, exe_cost)
                     # logging.info('tictak clients: self.rl_updates: {}'.format(self.rl_updates))
                     # if the client is not active by the time of collection, we consider it is lost in this round
@@ -390,7 +393,7 @@ class FLOATAggregator(Aggregator):
         """
         try:
             update_weights = results['update_weight']
-            if results.get('optimization') and 'quantization' in results['optimization']:
+            if results.get('optimization'):
                 # logging.info(f'type of update_weights: {type(update_weights)}')
                 # logging.info(f'update_weights: {(update_weights)}')
                 n_bit = int(results['optimization'].split('_')[1])
@@ -404,10 +407,7 @@ class FLOATAggregator(Aggregator):
                 self.model_weights = update_weights
             else:
                 # logging.info(f'Faraz - Starting aggregating, update weights type: {type(update_weights[0])}')
-                # if results.get('optimization') and ('pruning' in results['optimization'] or 'partial' in results['optimization']):
-                #     perc = 1-int(results['optimization'].split('_')[1])*0.01
-                #     self.model_weights = [weight + update_weights[i]*perc for i, weight in enumerate(self.model_weights)]
-                # else:
+                
                 self.model_weights = [weight + update_weights[i] for i, weight in enumerate(self.model_weights)]
                 # logging.info(f'Faraz - Finished aggregating')
             if self._is_last_result_in_round():
