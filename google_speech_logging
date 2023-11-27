@@ -1,0 +1,100 @@
+ERROR: JAVA_HOME /usr/lib/jvm/java-1.8.0-openjdk-1.8.0.322.b06-1.el7_9.x86_64 does not exist.
+2023-09-27 00:19:27.528661: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 AVX512F AVX512_VNNI FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2023-09-27 00:19:27.766305: I tensorflow/core/util/port.cc:104] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2023-09-27 00:19:28.649901: W tensorflow/compiler/xla/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libnvinfer.so.7'; dlerror: libnvinfer.so.7: cannot open shared object file: No such file or directory; LD_LIBRARY_PATH: /home/ahmad/hadoop/lib/native:
+2023-09-27 00:19:28.650016: W tensorflow/compiler/xla/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libnvinfer_plugin.so.7'; dlerror: libnvinfer_plugin.so.7: cannot open shared object file: No such file or directory; LD_LIBRARY_PATH: /home/ahmad/hadoop/lib/native:
+2023-09-27 00:19:28.650028: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Cannot dlopen some TensorRT libraries. If you would like to use Nvidia GPU with TensorRT, please make sure the missing libraries mentioned above are installed properly.
+(09-27) 00:19:29 INFO     [aggregator.py:55] Job args Namespace(adam_epsilon=1e-08, adapt_scale_coff=False, adapt_selection=1, adapt_selection_cap=0.5, avail_priority=0, avail_probability=0.0, backbone='./resnet50.pth', backend='gloo', bandwidth_profiles_dir='/home/ahmad/FedScale/benchmark/dataset/data/device_info/client_device_traces.csv', batch_size=20, bidirectional=True, blacklist_max_len=0.3, blacklist_rounds=-1, block_size=64, buffer_size=10, cfg_file='./utils/rcnn/cfgs/res101.yml', clf_block_size=32, clip_bound=0.9, clip_threshold=3.0, clock_factor=2.4368231046931412, conf_path='~/dataset/', connection_timeout=60, cuda_device=None, cut_off_util=0.05, data_cache='', data_dir='/home/ahmad/FedScale/benchmark/dataset/data/google_speech', data_map_file='/home/ahmad/FedScale/benchmark/dataset/data/google_speech/client_data_mapping/train.csv', data_set='google_speech', deadline=0.0, deadline_alpha=0.25, deadline_control=0, deadline_percent=0.0, decay_factor=0.98, decay_round=10, device_avail_file='/home/ahmad/FedScale/benchmark/dataset/data/device_info/client_behave_trace', device_conf_file='/home/ahmad/FedScale/benchmark/dataset/data/device_info/client_device_capacity', dirichlet_alpha=0.1, dropout_ratio=0.0, dump_epoch=10000000000.0, embedding_file='glove.840B.300d.txt', enforce_sgd=False, engine='pytorch', epsilon=0.9, eval_interval=50, executor_configs='wanda3:[1]', exp_type=0, experiment_mode='simulation', exploration_alpha=0.3, exploration_decay=0.98, exploration_factor=0.9, exploration_min=0.3, filter_class=0, filter_class_ratio=0.4, filter_less=21, filter_more=1000000000000000.0, finetune=False, gamma=0.9, gradient_policy='yogi', hidden_layers=7, hidden_size=256, initial_deadline=1000, initial_total_worker=100, input_dim=0, input_shape=[1, 3, 28, 28], job_name='google_speech', labels_path='labels.json', last_worker=False, learning_rate=0.05, line_by_line=False, local_steps=5, log_path='/home/ahmad/FedScale/benchmark', loss_decay=0.2, malicious_factor=1000000000000000.0, max_concurrency=10, max_staleness=5, memory_capacity=2000, min_learning_rate=5e-05, mlm=False, mlm_probability=0.15, mode='oort', model='resnet34', model_boost=False, model_size=65536, model_zoo='torchcv', n_actions=2, n_states=4, no_filter_dropouts=0, noise_dir=None, noise_factor=0.1, noise_max=0.5, noise_min=0.0, noise_prob=0.4, num_class=35, num_classes=35, num_executors=1, num_loaders=4, num_participants=30, output_dim=0, overcommitment=1.3, overwrite_cache=False, pacer_delta=5, pacer_step=20, partitioning=4, process_files_ratio=1.0, prohibit_reselect=5, proxy_mu=0.1, ps_ip='wanda3', ps_port='29500', random_behv=0, resume_wandb=False, rnn_type='lstm', round_penalty=2.0, round_threshold=30, rounds=501, sample_mode='oort', sample_rate=16000, sample_seed=233, sample_window=5.0, save_checkpoint=True, scale_coff=10, scale_sys=0.0, scale_sys_percent=0.0, send_delta=False, spec_augment=False, speed_volume_perturb=False, stale_all=False, stale_beta=0.35, stale_factor=1.0, stale_skip_round=False, stale_update=0, straggler_penalty=1.25, target_delta=0.0001, target_ratio=0.0, target_replace_iter=15, task='speech', test_bsz=20, test_manifest='data/test_manifest.csv', test_output_dir='./logs/server', test_ratio=1.0, test_size_file='', this_rank=0, time_stamp='0927_001922', total_clients=200, total_worker=30, train_manifest='data/train_manifest.csv', train_ratio=1.0, train_size_file='', train_uniform=False, use_cuda=True, use_wandb=True, used_samples=0, val_ratio=0.001, vocab_tag_size=500, vocab_token_size=10000, wandb_entity='refl', wandb_key='', wandb_tags='', wandb_token='', weight_decay=0, window='hamming', window_size=0.02, window_stride=0.01, yogi_beta=0.9, yogi_beta2=0.99, yogi_eta=0.003, yogi_tau=1e-08, zipf_param=1.95)
+(09-27) 00:19:29 INFO     [client_manager.py:16] Client manager mode: oort
+(09-27) 00:19:30 INFO     [aggregator.py:123] self.args.mode: oort
+(09-27) 00:19:30 INFO     [RL_singleQ.py:216] Loading Q from /home/ahmad/FedScale/benchmark/logs/rl_model/Q.pkl
+(09-27) 00:19:30 INFO     [aggregator.py:366] Loading client profiles
+(09-27) 00:19:30 INFO     [aggregator.py:271] Initiating control plane communication ...
+(09-27) 00:19:30 INFO     [aggregator.py:295] %%%%%%%%%% Opening aggregator sever using port [::]:29500 %%%%%%%%%%
+(09-27) 00:19:30 INFO     [fllibs.py:97] Initializing the model ...
+ERROR: JAVA_HOME /usr/lib/jvm/java-1.8.0-openjdk-1.8.0.322.b06-1.el7_9.x86_64 does not exist.
+(09-27) 00:19:37 INFO     [aggregator.py:1568] Start monitoring events ...
+2023-09-27 00:19:39.089821: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 AVX512F AVX512_VNNI FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2023-09-27 00:19:39.249466: I tensorflow/core/util/port.cc:104] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2023-09-27 00:19:39.946835: W tensorflow/compiler/xla/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libnvinfer.so.7'; dlerror: libnvinfer.so.7: cannot open shared object file: No such file or directory; LD_LIBRARY_PATH: /home/ahmad/hadoop/lib/native:
+2023-09-27 00:19:39.946895: W tensorflow/compiler/xla/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libnvinfer_plugin.so.7'; dlerror: libnvinfer_plugin.so.7: cannot open shared object file: No such file or directory; LD_LIBRARY_PATH: /home/ahmad/hadoop/lib/native:
+2023-09-27 00:19:39.946902: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Cannot dlopen some TensorRT libraries. If you would like to use Nvidia GPU with TensorRT, please make sure the missing libraries mentioned above are installed properly.
+(09-27) 00:19:40 INFO     [fllibs.py:97] Initializing the model ...
+(09-27) 00:19:40 ERROR    [executor.py:83] Numba could not be imported.
+If you are seeing this message and are undertaking Numba development work, you may need to re-run:
+
+python setup.py build_ext --inplace
+
+(Also, please check the development set up guide http://numba.pydata.org/numba-doc/latest/developer/contributing.html.)
+
+If you are not working on Numba development:
+
+Please report the error message and traceback, along with a minimal reproducer
+at: https://github.com/numba/numba/issues/new
+
+If more help is needed please feel free to speak to the Numba core developers
+directly at: https://gitter.im/numba/numba
+
+Thanks in advance for your help in improving Numba!
+
+The original error was: '/lib64/libstdc++.so.6: version `CXXABI_1.3.8' not found (required by /home/ahmad/anaconda3/envs/fedscale/lib/python3.7/site-packages/numba/typeconv/_typeconv.cpython-37m-x86_64-linux-gnu.so)'
+--------------------------------------------------------------------------------
+If possible please include the following in your error report:
+
+sys.executable: /home/ahmad/anaconda3/envs/fedscale/bin/python
+
+Traceback (most recent call last):
+  File "/home/ahmad/anaconda3/envs/fedscale/lib/python3.7/site-packages/numba/typeconv/typeconv.py", line 6, in <module>
+    from . import _typeconv
+ImportError: /lib64/libstdc++.so.6: version `CXXABI_1.3.8' not found (required by /home/ahmad/anaconda3/envs/fedscale/lib/python3.7/site-packages/numba/typeconv/_typeconv.cpython-37m-x86_64-linux-gnu.so)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/ahmad/FedScale/fedscale/cloud/execution/executor.py", line 788, in <module>
+    executor = Executor(parser.args)
+  File "/home/ahmad/FedScale/fedscale/cloud/execution/executor.py", line 84, in __init__
+    raise e
+  File "/home/ahmad/FedScale/fedscale/cloud/execution/executor.py", line 40, in __init__
+    self.model_adapter = self.get_client_trainer(args).get_model_adapter(init_model())
+  File "/home/ahmad/FedScale/fedscale/cloud/fllibs.py", line 99, in init_model
+    import_libs()
+  File "/home/ahmad/FedScale/fedscale/cloud/fllibs.py", line 36, in import_libs
+    import numba
+  File "/home/ahmad/anaconda3/envs/fedscale/lib/python3.7/site-packages/numba/__init__.py", line 18, in <module>
+    from .special import (
+  File "/home/ahmad/anaconda3/envs/fedscale/lib/python3.7/site-packages/numba/special.py", line 7, in <module>
+    from .typing.typeof import typeof
+  File "/home/ahmad/anaconda3/envs/fedscale/lib/python3.7/site-packages/numba/typing/__init__.py", line 2, in <module>
+    from .context import BaseContext, Context
+  File "/home/ahmad/anaconda3/envs/fedscale/lib/python3.7/site-packages/numba/typing/context.py", line 12, in <module>
+    from numba.typeconv import Conversion, rules
+  File "/home/ahmad/anaconda3/envs/fedscale/lib/python3.7/site-packages/numba/typeconv/rules.py", line 3, in <module>
+    from .typeconv import TypeManager, TypeCastingRules
+  File "/home/ahmad/anaconda3/envs/fedscale/lib/python3.7/site-packages/numba/typeconv/typeconv.py", line 19, in <module>
+    raise ImportError(msg % (url, reportme, str(e), sys.executable))
+ImportError: Numba could not be imported.
+If you are seeing this message and are undertaking Numba development work, you may need to re-run:
+
+python setup.py build_ext --inplace
+
+(Also, please check the development set up guide http://numba.pydata.org/numba-doc/latest/developer/contributing.html.)
+
+If you are not working on Numba development:
+
+Please report the error message and traceback, along with a minimal reproducer
+at: https://github.com/numba/numba/issues/new
+
+If more help is needed please feel free to speak to the Numba core developers
+directly at: https://gitter.im/numba/numba
+
+Thanks in advance for your help in improving Numba!
+
+The original error was: '/lib64/libstdc++.so.6: version `CXXABI_1.3.8' not found (required by /home/ahmad/anaconda3/envs/fedscale/lib/python3.7/site-packages/numba/typeconv/_typeconv.cpython-37m-x86_64-linux-gnu.so)'
+--------------------------------------------------------------------------------
+If possible please include the following in your error report:
+
+sys.executable: /home/ahmad/anaconda3/envs/fedscale/bin/python
+

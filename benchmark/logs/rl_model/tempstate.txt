@@ -1,0 +1,302 @@
+Loading Q from Q.pkl
+State:  ((), (('computation', '3'), ('communication', '4'), ('deadline_difference', '5')))
+count:  6
+count:  6
+count:  7
+count:  6
+count:  6
+count:  6
+count:  8
+count:  6
+State:  ((), (('computation', '1'), ('communication', '4'), ('deadline_difference', '5')))
+count:  2
+count:  2
+count:  1
+count:  1
+count:  1
+count:  1
+count:  1
+count:  1
+State:  ((), (('computation', '3'), ('communication', '2'), ('deadline_difference', '5')))
+count:  6
+count:  6
+count:  6
+count:  6
+count:  6
+count:  6
+count:  5
+count:  5
+State:  ((), (('computation', '4'), ('communication', '1'), ('deadline_difference', '5')))
+count:  11
+count:  10
+count:  11
+count:  10
+count:  10
+count:  10
+count:  10
+count:  9
+State:  ((), (('computation', '3'), ('communication', '1'), ('deadline_difference', '5')))
+count:  8
+count:  8
+count:  7
+count:  6
+count:  7
+count:  6
+count:  6
+count:  6
+State:  ((), (('computation', '1'), ('communication', '2'), ('deadline_difference', '5')))
+count:  2
+count:  2
+count:  2
+count:  1
+count:  1
+count:  1
+count:  1
+count:  1
+State:  ((), (('computation', '2'), ('communication', '1'), ('deadline_difference', '5')))
+count:  4
+count:  3
+count:  3
+count:  3
+count:  3
+count:  3
+count:  2
+count:  2
+State:  ((), (('computation', '4'), ('communication', '3'), ('deadline_difference', '5')))
+count:  8
+count:  8
+count:  8
+count:  8
+count:  8
+count:  8
+count:  8
+count:  7
+State:  ((), (('computation', '5'), ('communication', '2'), ('deadline_difference', '5')))
+count:  19
+count:  19
+count:  19
+count:  18
+count:  18
+count:  19
+count:  18
+count:  19
+State:  ((), (('computation', '4'), ('communication', '2'), ('deadline_difference', '5')))
+count:  8
+count:  8
+count:  8
+count:  8
+count:  8
+count:  8
+count:  8
+count:  8
+State:  ((), (('computation', '5'), ('communication', '1'), ('deadline_difference', '5')))
+count:  19
+count:  19
+count:  19
+count:  19
+count:  19
+count:  18
+count:  18
+count:  19
+State:  ((), (('computation', '4'), ('communication', '4'), ('deadline_difference', '5')))
+count:  8
+count:  8
+count:  7
+count:  6
+count:  7
+count:  6
+count:  6
+count:  6
+State:  ((), (('computation', '3'), ('communication', '3'), ('deadline_difference', '5')))
+count:  5
+count:  5
+count:  5
+count:  5
+count:  4
+count:  4
+count:  4
+count:  4
+State:  ((), (('computation', '1'), ('communication', '3'), ('deadline_difference', '5')))
+count:  2
+count:  1
+count:  1
+count:  1
+count:  2
+count:  1
+count:  1
+count:  1
+State:  ((), (('computation', '5'), ('communication', '3'), ('deadline_difference', '5')))
+count:  16
+count:  17
+count:  16
+count:  15
+count:  15
+count:  15
+count:  15
+count:  15
+State:  ((), (('computation', '2'), ('communication', '3'), ('deadline_difference', '5')))
+count:  4
+count:  3
+count:  3
+count:  2
+count:  2
+count:  2
+count:  2
+count:  2
+State:  ((), (('computation', '4'), ('communication', '5'), ('deadline_difference', '5')))
+count:  7
+count:  7
+count:  8
+count:  7
+count:  6
+count:  7
+count:  8
+count:  6
+State:  ((), (('computation', '2'), ('communication', '4'), ('deadline_difference', '5')))
+count:  3
+count:  2
+count:  2
+count:  2
+count:  2
+count:  2
+count:  2
+count:  2
+State:  ((), (('computation', '1'), ('communication', '5'), ('deadline_difference', '5')))
+count:  1
+count:  1
+count:  1
+count:  1
+State:  ((), (('computation', '5'), ('communication', '4'), ('deadline_difference', '5')))
+count:  16
+count:  16
+count:  17
+count:  15
+count:  17
+count:  16
+count:  15
+count:  15
+State:  ((), (('computation', '2'), ('communication', '2'), ('deadline_difference', '5')))
+count:  3
+count:  2
+count:  2
+count:  3
+count:  2
+count:  3
+count:  2
+count:  2
+State:  ((), (('computation', '2'), ('communication', '5'), ('deadline_difference', '5')))
+count:  3
+count:  3
+count:  3
+count:  4
+count:  3
+count:  3
+count:  3
+count:  3
+State:  ((), (('computation', '5'), ('communication', '5'), ('deadline_difference', '5')))
+count:  17
+count:  15
+count:  15
+count:  15
+count:  16
+count:  15
+count:  16
+count:  14
+State:  ((), (('computation', '1'), ('communication', '1'), ('deadline_difference', '5')))
+count:  2
+count:  2
+count:  2
+count:  2
+count:  2
+count:  2
+count:  2
+count:  1
+State:  ((), (('computation', '5'), ('communication', '2'), ('deadline_difference', '4')))
+count:  1
+count:  1
+State:  ((), (('computation', '3'), ('communication', '5'), ('deadline_difference', '5')))
+count:  5
+count:  5
+count:  5
+count:  4
+count:  4
+count:  4
+count:  4
+count:  4
+State:  ((), (('computation', '3'), ('communication', '3'), ('deadline_difference', '2')))
+count:  1
+count:  1
+State:  ((), (('computation', '5'), ('communication', '4'), ('deadline_difference', '1')))
+count:  1
+count:  1
+count:  1
+count:  1
+count:  1
+count:  1
+State:  ((), (('computation', '4'), ('communication', '2'), ('deadline_difference', '1')))
+count:  1
+count:  1
+State:  ((), (('computation', '4'), ('communication', '3'), ('deadline_difference', '1')))
+count:  1
+count:  1
+State:  ((), (('computation', '4'), ('communication', '1'), ('deadline_difference', '1')))
+count:  1
+count:  1
+count:  1
+count:  1
+State:  ((), (('computation', '3'), ('communication', '5'), ('deadline_difference', '4')))
+count:  1
+State:  ((), (('computation', '4'), ('communication', '5'), ('deadline_difference', '1')))
+count:  1
+State:  ((), (('computation', '5'), ('communication', '1'), ('deadline_difference', '4')))
+count:  1
+State:  ((), (('computation', '5'), ('communication', '2'), ('deadline_difference', '1')))
+count:  1
+count:  1
+count:  1
+State:  ((), (('computation', '1'), ('communication', '5'), ('deadline_difference', '2')))
+count:  1
+State:  ((), (('computation', '5'), ('communication', '4'), ('deadline_difference', '3')))
+count:  1
+count:  1
+State:  ((), (('computation', '1'), ('communication', '3'), ('deadline_difference', '2')))
+count:  1
+State:  ((), (('computation', '5'), ('communication', '1'), ('deadline_difference', '1')))
+count:  1
+count:  1
+State:  ((), (('computation', '1'), ('communication', '4'), ('deadline_difference', '4')))
+count:  1
+State:  ((), (('computation', '3'), ('communication', '5'), ('deadline_difference', '3')))
+count:  1
+count:  1
+State:  ((), (('computation', '1'), ('communication', '2'), ('deadline_difference', '2')))
+count:  1
+State:  ((), (('computation', '3'), ('communication', '2'), ('deadline_difference', '4')))
+count:  1
+State:  ((), (('computation', '4'), ('communication', '2'), ('deadline_difference', '4')))
+count:  1
+State:  ((), (('computation', '5'), ('communication', '3'), ('deadline_difference', '1')))
+count:  1
+count:  1
+State:  ((), (('computation', '4'), ('communication', '1'), ('deadline_difference', '4')))
+count:  1
+State:  ((), (('computation', '1'), ('communication', '2'), ('deadline_difference', '3')))
+count:  1
+State:  ((), (('computation', '5'), ('communication', '5'), ('deadline_difference', '1')))
+count:  1
+count:  1
+count:  1
+State:  ((), (('computation', '2'), ('communication', '4'), ('deadline_difference', '3')))
+count:  1
+State:  ((), (('computation', '5'), ('communication', '1'), ('deadline_difference', '2')))
+count:  1
+State:  ((), (('computation', '2'), ('communication', '3'), ('deadline_difference', '2')))
+count:  1
+State:  ((), (('computation', '3'), ('communication', '4'), ('deadline_difference', '2')))
+count:  1
+State:  ((), (('computation', '4'), ('communication', '4'), ('deadline_difference', '2')))
+count:  1
+State:  ((), (('computation', '2'), ('communication', '2'), ('deadline_difference', '1')))
+count:  1
+State:  ((), (('computation', '3'), ('communication', '2'), ('deadline_difference', '2')))
+count:  1

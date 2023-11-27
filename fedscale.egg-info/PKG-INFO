@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: fedscale
+Version: 0.5
+Summary: FedScale: Benchmarking Model and System Performance of Federated Learning
+Home-page: https://github.com/SymbioticLab/FedScale
+Author: FedScale authors
+Author-email: fedscale@googlegroups.com
+License-File: LICENSE
