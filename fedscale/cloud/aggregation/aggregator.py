@@ -462,6 +462,7 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
 
             
             ##########################Network clustering#########################
+            clusters = []
             if self.bandwidth_profiles_dir != '':
                 dynamic_network_profiles = pd.read_csv(self.bandwidth_profiles_dir)
                 # Normalize the throughput values if necessary
@@ -481,7 +482,6 @@ class Aggregator(job_api_pb2_grpc.JobServiceServicer):
                 dynamic_network_profiles = dynamic_network_profiles.sort_values(['cluster', 'normalized_throughput'], ascending=[True, False])
 
                 # Retrieve the bandwidth profiles for each cluster
-                clusters = []
                 for cluster_id in range(k):
                     cluster_profiles = dynamic_network_profiles[dynamic_network_profiles['cluster'] == cluster_id]
                     cluster_bandwidths = list(cluster_profiles['throughput_mbps'] * 1024)  # Convert to kbps
