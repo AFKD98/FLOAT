@@ -1,10 +1,4 @@
-<p align="center">
-<img src="./docs/imgs/FedScale-logo.png" width="300" height="55"/>
-</p>
-
-[![](https://img.shields.io/badge/FedScale-Homepage-orange)](https://fedscale.ai/)
-[![](https://img.shields.io/badge/Benchmark-Submit%20Results-brightgreen)](https://fedscale.ai/docs/leader_overview)
-[![](https://img.shields.io/badge/FedScale-Join%20Slack-blue)](https://join.slack.com/t/fedscale/shared_invite/zt-uzouv5wh-ON8ONCGIzwjXwMYDC2fiKw)
+<h1> FLOAT: Federated Learning Optimizations with Automated Tuning </h1>
 
 **FLOAT (Federated Learning Optimizations with Automated Tuning) is an advanced framework designed to improve federated learning (FL) by optimizing resource utilization and model performance.**
 
