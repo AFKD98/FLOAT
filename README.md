@@ -63,9 +63,8 @@ FedScale consists of 20+ large-scale, heterogeneous FL datasets and 70+ various 
 Each one is associated with its training, validation, and testing datasets. 
 We acknowledge the contributors of these raw datasets. Please go to the `./benchmark/dataset` directory and follow the dataset [README](./benchmark/dataset/README.md) for more details.
 
-## FedScale Runtime
-FedScale Runtime is an scalable and extensible deployment as well as evaluation platform to simplify and standardize FL experimental setup and model evaluation. 
-It evolved from our prior system, [Oort](https://github.com/SymbioticLab/Oort), which has been shown to scale well and can emulate FL training of thousands of clients in each round.
+## FLOAT Runtime
+FLOAT Runtime is a scalable and extensible deployment built on FedSCale. 
 
 Please go to `./fedscale/cloud` directory and follow the [README](./fedscale/cloud/README.md) to set up FL training scripts and the [README](./fedscale/edge/android/README.md) for practical on-device deployment.
 
