@@ -19,7 +19,7 @@ You can simply run `float_install.sh`.
 
 ```
 source float_install.sh # Add `--cuda` if you want CUDA 
-pip install -e .
+pip install -r requirements.txt && pip install -e .
 ```
 
 Update `float_install.sh` if you prefer different versions of conda/CUDA.
@@ -40,7 +40,7 @@ conda init bash
 
 conda env create -f environment.yml
 conda activate fedscale
-pip install -e .
+pip install -r requirements.txt && pip install -e .
 ```
 
 Finally, install NVIDIA [CUDA 10.2](https://developer.nvidia.com/cuda-downloads) or above if you want to use FedScale with GPU support.
