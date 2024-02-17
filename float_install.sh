@@ -7,37 +7,23 @@
 # # Change directory to the cloned repository
 # cd FLOAT/
 
-# FEDSCALE_HOME=$(pwd)
-# if [[ $(uname -s) == 'Darwin' ]]; then
-#   echo MacOS
-#   echo export FEDSCALE_HOME=$(pwd) >> ~/.bash_profile
-#   echo alias fedscale=\'bash ${FEDSCALE_HOME}/fedscale.sh\' >> ~/.bash_profile
-  
-# else
-#   echo export FEDSCALE_HOME=$(pwd) >> ~/.bashrc
-#   echo alias fedscale=\'bash ${FEDSCALE_HOME}/fedscale.sh\' >> ~/.bashrc
-# fi
 
-# # Create and activate the conda environment
-# conda init bash
-# . ~/.bashrc
-# conda env create -f FLOAT_environment.yml
-# conda activate fedscale
+# Please replace ~/.bashrc with ~/.bash_profile for MacOS
 
+FLOAT_HOME=$(pwd)
 
-#!/usr/bin/env python
-#!/bin/bash
-FEDSCALE_HOME=$(pwd)
+chmod +x $FLOAT_HOME/float.sh
+
 if [[ $(uname -s) == 'Darwin' ]]; then
   echo MacOS
-  echo export FEDSCALE_HOME=$(pwd) >> ~/.bash_profile
-  echo alias fedscale=\'bash ${FEDSCALE_HOME}/float.sh\' >> ~/.bash_profile
-  echo alias float=\'bash ${FEDSCALE_HOME}/float.sh\' >> ~/.bash_profile
+  echo export FLOAT_HOME=$(pwd) >> ~/.bash_profile
+  echo alias fedscale=\'bash ${FLOAT_HOME}/float.sh\' >> ~/.bash_profile
+  echo alias float=\'bash ${FLOAT_HOME}/float.sh\' >> ~/.bash_profile
   
 else
-  echo export FEDSCALE_HOME=$(pwd) >> ~/.bashrc
-  echo alias fedscale=\'bash ${FEDSCALE_HOME}/fedscale.sh\' >> ~/.bashrc
-  echo alias float=\'bash ${FEDSCALE_HOME}/float.sh\' >> ~/.bashrc
+  echo export FLOAT_HOME=$(pwd) >> ~/.bashrc
+  echo alias fedscale=\'bash ${FLOAT_HOME}/fedscale.sh\' >> ~/.bashrc
+  echo alias float=\'bash ${FLOAT_HOME}/float.sh\' >> ~/.bashrc
 fi
 
 
@@ -64,7 +50,6 @@ isPackageNotInstalled conda
 
 
 # create conda env
-
 
 if [[ $(uname -p) == 'arm' ]]; then
   source ~/miniconda/bin/activate
