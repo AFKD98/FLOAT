@@ -5,6 +5,7 @@ from fedscale.dataloaders.divide_data import DataPartitioner
 import os
 import pickle
 
+
 class ClientMetadata:
     """
     Contains the server-side metadata for a single client.
@@ -23,11 +24,16 @@ class ClientMetadata:
         self.client_id = client_id
         
         #Faraz - get samples per client from saved partitions
-        # filename = '/home/ahmad/FedScale/benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha1.0'
-        # filename = '/home/ahmad/FedScale/benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha0.05'
-        # filename = '/home/ahmad/FedScale/benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha0.1'
-        filename = '/home/ahmad/FedScale/benchmark/dataset/data/cifar/metadata/cifar10/data_mappings/part4_clients200_data50000_labels4_samples250_alpha0.1'
-        # filename = '/home/ahmad/FedScale/benchmark/dataset/data/cifar/metadata/cifar10/data_mappings/part-1_clients200_data50000_labels10_samples0'
+        # data_mappings = 'benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha1.0'
+        # data_mappings = 'benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha0.05'
+        # Access the environment variable
+        # Construct the file path using the environment variable
+        # data_mappings = 'benchmark/dataset/data/cifar/metadata/cifar10/data_mappings/part4_clients200_data50000_labels4_samples250_alpha0.1'
+        # data_mappings = 'benchmark/dataset/data/cifar/metadata/cifar10/data_mappings/part-1_clients200_data50000_labels10_samples0'
+        data_mappings = 'benchmark/dataset/data/femnist/metadata/femnist/data_mappings/part4_clients200_data637877_labels25_samples3189_alpha0.1'
+        FLOAT_HOME = os.getcwd()
+        FLOAT_HOME = os.path.join(FLOAT_HOME, 'FLOAT')
+        filename = os.path.join(FLOAT_HOME, data_mappings)
         partitions = pickle.load(open(filename, 'rb'))
         # logging.info(f'partitions: {len(partitions)}')
         self.samples_per_client = len(partitions[client_id-1])

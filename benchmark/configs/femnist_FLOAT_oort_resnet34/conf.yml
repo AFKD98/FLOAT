@@ -2,15 +2,15 @@
 
 # ========== Cluster configuration ==========
 # ip address of the parameter server (need 1 GPU process)
-ps_ip: wanda3
+ps_ip: 127.0.0.1
 
 # ip address of each worker:# of available gpus process on each gpu in this node
 # Note that if we collocate ps and worker on same GPU, then we need to decrease this number of available processes on that GPU by 1
 # E.g., master node has 4 available processes, then 1 for the ps, and worker should be set to: worker:3
 worker_ips:
-    - wanda3:[1]
+    - 127.0.0.1:[1]
 
-exp_path: $FEDSCALE_HOME/fedscale/cloud
+exp_path: $FLOAT_HOME/fedscale/cloud
 
 # Entry function of executor and aggregator under $exp_path
 executor_entry: execution/executor.py
@@ -30,13 +30,13 @@ setup_commands:
 
 job_conf:
     - job_name: femnist                     # Generate logs under this folder: log_path/job_name/time_stamp
-    - log_path: $FEDSCALE_HOME/benchmark    # Path of log files
+    - log_path: $FLOAT_HOME/benchmark    # Path of log files
     - num_participants: 30                  # Number of participants per round, we use K=100 in our paper, large K will be much slower
     - data_set: femnist                     # Dataset: openImg, google_speech, stackoverflow
-    - data_dir: $FEDSCALE_HOME/benchmark/dataset/data/femnist    # Path of the dataset
-    - data_map_file: $FEDSCALE_HOME/benchmark/dataset/data/femnist/client_data_mapping/train.csv              # Allocation of data to each client, turn to iid setting if not provided
-    - device_conf_file: $FEDSCALE_HOME/benchmark/dataset/data/device_info/client_device_capacity     # Path of the client trace
-    - device_avail_file: $FEDSCALE_HOME/benchmark/dataset/data/device_info/client_behave_trace
+    - data_dir: $FLOAT_HOME/benchmark/dataset/data/femnist    # Path of the dataset
+    - data_map_file: $FLOAT_HOME/benchmark/dataset/data/femnist/client_data_mapping/train.csv              # Allocation of data to each client, turn to iid setting if not provided
+    - device_conf_file: $FLOAT_HOME/benchmark/dataset/data/device_info/client_device_capacity     # Path of the client trace
+    - device_avail_file: $FLOAT_HOME/benchmark/dataset/data/device_info/client_behave_trace
     - model: resnet34                       # NOTE: Please refer to our model zoo README and use models for these small image (e.g., 32x32x3) inputs
 #    - model_zoo: fedscale-torch-zoo
     - eval_interval: 1                     # How many rounds to run a testing on the testing set
@@ -59,7 +59,7 @@ job_conf:
     - use_wandb: 1
     - last_worker: 0
     - partitioning: 4
-    - dirichlet_alpha: 0.05
+    - dirichlet_alpha: 0.1
     - zipf_param: 1.95
     - filter_class_ratio: 0.4
     - total_clients: 200
@@ -67,4 +67,4 @@ job_conf:
     - model_boost: 0
     - stale_all: 0
     - adapt_selection: 1
-    - bandwidth_profiles_dir: $FEDSCALE_HOME/benchmark/dataset/data/device_info/client_device_traces.csv #Farz - path of client trace for dynamic networks
+    - bandwidth_profiles_dir: $FLOAT_HOME/benchmark/dataset/data/device_info/client_device_traces.csv #Farz - path of client trace for dynamic networks

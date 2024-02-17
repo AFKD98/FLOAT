@@ -2,7 +2,7 @@
 
 # ========== Cluster configuration ========== 
 # ip address of the parameter server (need 1 GPU process)
-ps_ip: wanda3
+ps_ip: 127.0.0.1
 
 # ip address of each worker:# of available gpus process on each gpu in this node
 # Note that if we collocate ps and worker on same GPU, then we need to decrease this number of available processes on that GPU by 1
@@ -20,7 +20,7 @@ ps_ip: wanda3
 #     - 10.0.0.12:[4]
 #     - 10.0.0.13:[4]
 worker_ips:
-    - wanda3:[1]
+    - 127.0.0.1:[1]
 
 exp_path: $FEDSCALE_HOME/fedscale/cloud
 

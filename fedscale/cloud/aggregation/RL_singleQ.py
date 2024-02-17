@@ -28,9 +28,14 @@ class RL:
         self.w_a = 0.5
         self.rewards_per_round = []
         self.selected_actions_rewards = {}
-        path = '/home/ahmad/FedScale/benchmark/logs/rl_model/Q.pkl'
-        if os.path.exists(path):
-            self.get_Q_from_path(path)
+        # path = '/home/ahmad/FedScale/benchmark/logs/rl_model/Q.pkl'
+        Q_file = 'benchmark/logs/rl_model/Q.pkl'
+        FLOAT_HOME = os.getcwd()
+        FLOAT_HOME = os.path.join(FLOAT_HOME, 'FLOAT')
+        self.filepath = os.path.join(FLOAT_HOME, Q_file)
+        if os.path.exists(self.filepath):
+            logging.info("Loading Q table from {}".format(self.filepath))
+            self.get_Q_from_path(self.filepath)
         else:
             self.Q = {}
         self.max_q_table_size = 10000
@@ -203,10 +208,15 @@ class RL:
     def save_Q(self, path):
         try:
             # return
-            path = os.path.join(path, 'Q.pkl')
-            logging.info("Saving Q to {}".format(path))
-            with open(path, 'wb') as f:
-                pickle.dump(self.Q, f)
+            if os.path.exists(self.filepath):
+                logging.info("Saving Q to {}".format(self.filepath))
+                with open(self.filepath, 'wb') as f:
+                    pickle.dump(self.Q, f)
+            else:
+                path = os.path.join(path, 'Q.pkl')
+                logging.info("Saving Q to {}".format(path))
+                with open(path, 'wb') as f:
+                    pickle.dump(self.Q, f)
         except Exception as e:
             logging.error("Error in save_Q")
             logging.error(e)
@@ -222,10 +232,15 @@ class RL:
             
     def load_Q(self, path):
         try:
-            path = os.path.join(path, 'Q.pkl')
-            logging.info("Loading Q from {}".format(path))
-            with open(path, 'rb') as f:
-                self.Q = pickle.load(f)
+            if os.path.exists(self.filepath):
+                logging.info("Loading Q to {}".format(self.filepath))
+                with open(path, 'rb') as f:
+                    self.Q = pickle.load(f)
+            else:
+                path = os.path.join(path, 'Q.pkl')
+                logging.info("Loading Q from {}".format(path))
+                with open(path, 'rb') as f:
+                    self.Q = pickle.load(f)
         except Exception as e:
             logging.error("Error in load_Q")
             logging.error(e)
