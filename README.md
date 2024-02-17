@@ -6,7 +6,11 @@
 [![](https://img.shields.io/badge/Benchmark-Submit%20Results-brightgreen)](https://fedscale.ai/docs/leader_overview)
 [![](https://img.shields.io/badge/FedScale-Join%20Slack-blue)](https://join.slack.com/t/fedscale/shared_invite/zt-uzouv5wh-ON8ONCGIzwjXwMYDC2fiKw)
 
-**FedScale is a scalable and extensible open-source federated learning (FL) engine and benchmark**. 
+**FLOAT (Federated Learning Optimizations with Automated Tuning) is an advanced framework designed to improve federated learning (FL) by optimizing resource utilization and model performance.**
+
+It addresses the challenges of client heterogeneity, stragglers, and dropouts in FL environments through dynamic resource-aware client optimization strategies. FLOAT leverages a multi-objective Reinforcement Learning with Human Feedback (RLHF) mechanism to automate the selection and configuration of optimization techniques tailored to individual client resource conditions. This approach not only enhances model convergence and performance but also increases accuracy, reduces client dropouts, and improves resource efficiency across communication, computation, and memory usage. Additionally, FLOAT is compatible with existing FL systems and supports both asynchronous and synchronous FL settings, showcasing its versatility and non-intrusiveness. 
+
+**FLOAT is built on FedScale, a scalable and extensible open-source federated learning (FL) engine and benchmark**. 
 
 FedScale ([fedscale.ai](https://fedscale.ai/)) provides high-level APIs to implement FL algorithms, deploy and evaluate them at scale across diverse hardware and software backends. 
 FedScale also includes the largest FL benchmark that contains FL tasks ranging from image classification and object detection to language modeling and speech recognition. 
@@ -17,25 +21,26 @@ Moreover, it provides datasets to faithfully emulate FL training environments wh
 
 ### Quick Installation (Linux)
 
-You can simply run `install.sh`.
+You can simply run `float_install.sh`.
 
 ```
-source install.sh # Add `--cuda` if you want CUDA 
+source float_install.sh # Add `--cuda` if you want CUDA 
 pip install -e .
 ```
 
-Update `install.sh` if you prefer different versions of conda/CUDA.
+Update `float_install.sh` if you prefer different versions of conda/CUDA.
 
 ### Installation from Source (Linux/MacOS)
 
 If you have [Anaconda](https://www.anaconda.com/products/distribution#download-section) installed and cloned FedScale, here are the instructions.
 ```
-cd FedScale
+cd FLOAT
 
 # Please replace ~/.bashrc with ~/.bash_profile for MacOS
-FEDSCALE_HOME=$(pwd)
-echo export FEDSCALE_HOME=$(pwd) >> ~/.bashrc 
-echo alias fedscale=\'bash $FEDSCALE_HOME/fedscale.sh\' >> ~/.bashrc 
+FLOAT_HOME=$(pwd)
+echo export FLOAT_HOME=$(pwd) >> ~/.bashrc
+echo alias fedscale=\'bash $FLOAT_HOME/float.sh\' >> ~/.bashrc
+echo alias float=\'bash $FLOAT_HOME/float.sh\' >> ~/.bashrc 
 conda init bash
 . ~/.bashrc
 
@@ -49,7 +54,7 @@ Finally, install NVIDIA [CUDA 10.2](https://developer.nvidia.com/cuda-downloads)
 
 ### Tutorials
 
-Now that you have FedScale installed, you can start exploring FedScale following one of these introductory tutorials.
+Now that you have FLOAT installed on FedScale, you can start exploring FLOAT following one of these introductory tutorials.
 
 1. [Explore FedScale datasets](./docs/Femnist_stats.md)
 2. [Deploy your FL experiment](./docs/tutorial.md)
@@ -95,22 +100,25 @@ Repo Root
 Please read and/or cite as appropriate to use FedScale code or data or learn more about FedScale.
 
 ```bibtex
-@inproceedings{fedscale-icml22,
-  title={{FedScale}: Benchmarking Model and System Performance of Federated Learning at Scale},
-  author={Fan Lai and Yinwei Dai and Sanjay S. Singapuram and Jiachen Liu and Xiangfeng Zhu and Harsha V. Madhyastha and Mosharaf Chowdhury},
-  booktitle={International Conference on Machine Learning (ICML)},
-  year={2022}
+@inproceedings{Khan2024FLOAT,
+  title={FLOAT: Federated Learning Optimizations with Automated Tuning},
+  author={Ahmad Faraz Khan and Azal Ahmad Khan and Ahmed M. Abdelmoniem and Samuel Fountain and Ali R. Butt and Ali Anwar},
+  booktitle={Eighteenth European Conference on Computer Systems (EuroSys '24)},
+  year={2024},
+  address={Athens, Greece},
+  pages={1--18},
+  doi={10.1145/3552326.3567485}
 }
 ```
 
 and  
 
 ```bibtex
-@inproceedings{oort-osdi21,
-  title={Oort: Efficient Federated Learning via Guided Participant Selection},
-  author={Fan Lai and Xiangfeng Zhu and Harsha V. Madhyastha and Mosharaf Chowdhury},
-  booktitle={USENIX Symposium on Operating Systems Design and Implementation (OSDI)},
-  year={2021}
+@inproceedings{fedscale-icml22,
+  title={{FedScale}: Benchmarking Model and System Performance of Federated Learning at Scale},
+  author={Fan Lai and Yinwei Dai and Sanjay S. Singapuram and Jiachen Liu and Xiangfeng Zhu and Harsha V. Madhyastha and Mosharaf Chowdhury},
+  booktitle={International Conference on Machine Learning (ICML)},
+  year={2022}
 }
 ```
 
