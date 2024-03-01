@@ -110,7 +110,7 @@ bash float_run_exps.sh -d dataset -a algorithm
 For example, for running Oort this is the command:
 
 ```bash
-bash float_run_exps.sh -d femnist -a port
+bash float_run_exps.sh -d femnist -a oort
 ```
 
 For running Oort with FLOAT the command is as follows:
