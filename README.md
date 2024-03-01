@@ -22,7 +22,7 @@ source float_install.sh # Add `--cuda` if you want CUDA
 pip install -r requirements.txt && pip install -e .
 ```
 
-Update `float_install.sh` if you prefer different versions of conda/CUDA.
+Update `float_install.sh` if you prefer different versions of conda/CUDA. Running **float_install.sh** should install all dependencies in a conda environment and also activate the `fedscale` conda environment on the bash terminal.
 
 ### Installation from Source (Linux/MacOS)
 
@@ -62,12 +62,68 @@ Now that you have FLOAT installed on FedScale, you can start exploring FLOAT fol
 FedScale consists of 20+ large-scale, heterogeneous FL datasets and 70+ various [models](./fedscale/utils/models/cv_models/README.md), covering computer vision (CV), natural language processing (NLP), and miscellaneous tasks. 
 Each one is associated with its training, validation, and testing datasets. 
 We acknowledge the contributors of these raw datasets. Please go to the `./benchmark/dataset` directory and follow the dataset [README](./benchmark/dataset/README.md) for more details.
+The datasets can be downloaded using the following command:
+
+```bash
+./benchmark/dataset/download.sh download DATASET
+```
 
 ## FLOAT Runtime
 FLOAT Runtime is a scalable and extensible deployment built on FedSCale. 
 
 Please go to `./fedscale/cloud` directory and follow the [README](./fedscale/cloud/README.md) to set up FL training scripts and the [README](./fedscale/edge/android/README.md) for practical on-device deployment.
 
+### Hardware Dependencies
+
+Running experiments do not mandate any special hardware. However, to run the experiments in a reasonable amount of time servers with fast Nvidia GPUs (e.g., A100/V100) or at least 3070 GPUs are recommended. However, due to the scale of the experiments conducted in this study, it may not be feasible to reproduce it due to the large cost incurred. To give an estimate, even with advanced GPUs such as RTX 3070 GPUs, it took a significant amount of time to run them (i.e., 1400 hours of GPU time). This makes it quite hard to reproduce the claims/figures within the time frame set for evaluation.
+
+### Software Dependencies
+
+The FLOAT framework's operation requires Python for core programming, Anaconda for package and environment management, and CUDA for GPU support in accelerated computing tasks. Essential packages and libraries required for FLOAT are included in the **environment.yml** file and **requirements.txt** within the FLOAT repository.
+
+### Benchmarks
+
+FLOAT supports various FL tasks including image classification and speech recognition. Other tasks such as language modeling can also be added as they are supported by FedScale and FLOAT leverages FedScale's extensive dataset and benchmark suite. To provide a realistic simulation environment, FLOAT includes real-world traces for compute, network, and client availability. These traces are critical for accurately simulating FL environments and are located in the following directory of FLOAT's GitHub repository:
+
+## Setup
+
+### Installation
+
+**NOTE:** Although FLOAT automatically finds the correct paths using `os` commands in Python. Nevertheless, please ensure that the paths to the code and datasets are consistent across all nodes so that the simulator can find the right path. FLOAT can run on a single node or on multiple nodes that have at least a 3070 Nvidia GPU and the CPU capacity to run at least 30 threads in parallel.
+
+**Quick start:**
+After cloning the repo, go to the main directory FLOAT using the following command:
+
+```bash
+cd FLOAT
+```
+
+First, edit **float_install.sh** script if necessary. Please, uncomment the parts relating to the installation of the Anaconda Package Manager, CUDA 10.2 if they are not already present on the servers. Note, if you prefer different versions of conda and CUDA, please check the comments in **float_install.sh** for details. After editing, run the following commands to prepare the environment:
+
+
+To execute an example experiment, use:
+
+```bash
+bash float_run_exps.sh -d dataset -a algorithm
+```
+
+For example, for running Oort this is the command:
+
+```bash
+bash float_run_exps.sh -d femnist -a port
+```
+
+For running Oort with FLOAT the command is as follows:
+
+```bash
+bash float_run_exps.sh -d femnist -a oort_float
+```
+
+Further commands can be accessed using:
+
+```bash
+bash float_run_exps.sh -h
+```
 
 ## Repo Structure
 
