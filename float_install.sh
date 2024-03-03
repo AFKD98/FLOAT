@@ -68,7 +68,8 @@ else
 
 fi
 
-
+#Add authorized key of localhost 
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 
 if [ "$1" == "--cuda" ]; then
   wget https://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda_10.2.89_440.33.01_linux.run
