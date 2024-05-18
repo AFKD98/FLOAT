@@ -146,7 +146,7 @@ Repo Root
 ```
 
 ## References
-Please read and/or cite as appropriate to use FedScale code or data or learn more about FedScale.
+Please read and/or cite as appropriate to use FLOAT code or data or learn more about FLOAT. Also a shoutout to FedScale upon which FLOAT is built.
 
 ```bibtex
 @inproceedings{Khan2024FLOAT,
